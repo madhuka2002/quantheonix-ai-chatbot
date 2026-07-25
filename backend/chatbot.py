@@ -39,22 +39,29 @@ def main() -> None:
     try:
         client = create_client()
 
-        user_message = input("You: ").strip()
+        print("Quantheonix AI Chatbot")
+        print("Type 'exit' to close the chatbot.\n")
 
-        if not user_message:
-            print("Please enter a message.")
-            return
+        while True:
+            user_message = input("You: ").strip()
 
-        reply = generate_reply(client, user_message)
-        print(f"\nAI: {reply}")
+            if not user_message:
+                print("Please enter a message.\n")
+                continue
+
+            if user_message.lower() in {"exit", "quit"}:
+                print("AI: Goodbye!")
+                break
+
+            reply = generate_reply(client, user_message)
+            print(f"\nAI: {reply}\n")
 
     except KeyboardInterrupt:
-        print("\nProgram stopped.")
+        print("\nAI: Goodbye!")
 
     except Exception as error:
         print(f"\nError: {error}")
         sys.exit(1)
-
 
 if __name__ == "__main__":
     main()
