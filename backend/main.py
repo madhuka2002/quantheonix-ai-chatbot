@@ -1,28 +1,38 @@
+from uuid import UUID, uuid4
+
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel, Field
 
-from ai_service import create_chat, create_client, generate_reply
+from ai_service import create_client, generate_reply
+from conversation_manager import ConversationManager
 
 
 app = FastAPI(
     title="Quantheonix AI Chatbot API",
     description="Backend API for the Quantheonix AI Website Assistant.",
-    version="0.1.0",
+    version="0.2.0",
 )
 
 client = create_client()
-chat = create_chat(client)
+conversation_manager = ConversationManager(client)
 
 
 class ChatRequest(BaseModel):
     message: str = Field(
+        ...,
         min_length=1,
         max_length=2000,
         description="The message sent by the user.",
     )
 
+    conversation_id: UUID | None = Field(
+        default=None,
+        description="Existing conversation ID.",
+    )
+
 
 class ChatResponse(BaseModel):
+    conversation_id: UUID
     reply: str
 
 
@@ -51,9 +61,18 @@ def chat_endpoint(request: ChatRequest) -> ChatResponse:
                 detail="Message cannot be empty.",
             )
 
+        conversation_id = request.conversation_id or uuid4()
+
+        chat = conversation_manager.get_chat(
+            str(conversation_id)
+        )
+
         reply = generate_reply(chat, user_message)
 
-        return ChatResponse(reply=reply)
+        return ChatResponse(
+            conversation_id=conversation_id,
+            reply=reply,
+        )
 
     except HTTPException:
         raise
@@ -67,8 +86,8 @@ def chat_endpoint(request: ChatRequest) -> ChatResponse:
             raise HTTPException(
                 status_code=429,
                 detail=(
-                    "The chatbot has reached its current Gemini API quota. "
-                    "Please wait and try again later."
+                    "The chatbot has reached its current API quota. "
+                    "Please try again later."
                 ),
             ) from error
 
@@ -76,3 +95,5 @@ def chat_endpoint(request: ChatRequest) -> ChatResponse:
             status_code=500,
             detail="The chatbot could not generate a response.",
         ) from error
+
+
