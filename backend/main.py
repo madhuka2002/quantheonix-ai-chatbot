@@ -5,6 +5,10 @@ from pydantic import BaseModel, Field
 
 from ai_service import create_client, generate_reply
 from conversation_manager import ConversationManager
+from backend.logger import get_logger
+
+
+logger = get_logger(__name__)
 
 
 app = FastAPI(
@@ -68,11 +72,21 @@ def chat_endpoint(request: ChatRequest) -> ChatResponse:
 
         conversation_id = request.conversation_id or uuid4()
 
+        logger.info(
+            "Processing chat request for conversation %s",
+            conversation_id,
+        )
+
         chat = conversation_manager.get_chat(
             str(conversation_id)
         )
 
         reply = generate_reply(chat, user_message)
+
+        logger.info(
+            "Chat response generated for conversation %s",
+            conversation_id,
+        )
 
         return ChatResponse(
             conversation_id=conversation_id,
@@ -85,7 +99,10 @@ def chat_endpoint(request: ChatRequest) -> ChatResponse:
     except Exception as error:
         error_message = str(error)
 
-        print(f"Chat endpoint error: {error_message}")
+        logger.exception(
+            "Chat endpoint failed for conversation %s",
+            request.conversation_id,
+        )
 
         if "429" in error_message or "RESOURCE_EXHAUSTED" in error_message:
             raise HTTPException(
@@ -108,6 +125,11 @@ def chat_endpoint(request: ChatRequest) -> ChatResponse:
     )
 def reset_conversation(conversation_id: UUID) -> ResetConversationResponse:
     conversation_manager.remove_chat(str(conversation_id))
+
+    logger.info(
+        "Conversation %s has been reset.",
+        conversation_id,
+    )
 
     return ResetConversationResponse(
         message="Conversation has been reset successfully.",
