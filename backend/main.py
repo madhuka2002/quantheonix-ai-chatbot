@@ -36,6 +36,11 @@ class ChatResponse(BaseModel):
     reply: str
 
 
+
+class ResetConversationResponse(BaseModel):
+    message: str
+
+
 @app.get("/")
 def root() -> dict[str, str]:
     return {
@@ -97,3 +102,13 @@ def chat_endpoint(request: ChatRequest) -> ChatResponse:
         ) from error
 
 
+@app.delete(
+    "/api/conversations/{conversation_id}",
+    response_model=ResetConversationResponse,
+    )
+def reset_conversation(conversation_id: UUID) -> ResetConversationResponse:
+    conversation_manager.remove_chat(str(conversation_id))
+
+    return ResetConversationResponse(
+        message="Conversation has been reset successfully.",
+    )
