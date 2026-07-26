@@ -131,6 +131,32 @@
     white-space: nowrap;
 }
 
+.chat__heading {
+    display: flex;
+    gap: 1rem;
+    align-items: center;
+    justify-content: space-between;
+}
+
+.chat__reset-button {
+    flex-shrink: 0;
+    padding: 0.65rem 0.9rem;
+    color: #172033;
+    background: #ffffff;
+    border: 1px solid #cbd5e1;
+    border-radius: 0.65rem;
+    cursor: pointer;
+}
+
+.chat__reset-button:hover:not(:disabled) {
+    background: #f1f5f9;
+}
+
+.chat__reset-button:disabled {
+    cursor: not-allowed;
+    opacity: 0.55;
+}
+
 @media (max-width: 600px) {
     .app {
         padding: 0;
@@ -149,5 +175,14 @@
     }
     .message {
         max-width: 90%;
+    }
+    .chat__heading {
+        align-items: flex-start;
+    }
+    .chat__header h1 {
+        font-size: 1.1rem;
+    }
+    .chat__header p {
+        max-width: 190px;
     }
 }

@@ -1,24 +1,101 @@
-import { useState } from "react";
+import {
+  useEffect,
+  useRef,
+  useState,
+} from "react";
 
 import "./App.css";
-import { sendChatMessage } from "./services/chatApi";
+
+import {
+  resetConversation,
+  sendChatMessage,
+} from "./services/chatApi";
+
+
+const STORAGE_KEYS = {
+  conversationId: "quantheonix_conversation_id",
+  messages: "quantheonix_chat_messages",
+};
+
+const WELCOME_MESSAGE = {
+  id: "welcome-message",
+  role: "assistant",
+  content:
+    "Hello! I am the Quantheonix AI Assistant. How can I help you?",
+};
+
+
+function loadStoredMessages() {
+  try {
+    const storedMessages = localStorage.getItem(
+      STORAGE_KEYS.messages,
+    );
+
+    if (!storedMessages) {
+      return [WELCOME_MESSAGE];
+    }
+
+    const parsedMessages = JSON.parse(storedMessages);
+
+    if (!Array.isArray(parsedMessages)) {
+      return [WELCOME_MESSAGE];
+    }
+
+    return parsedMessages;
+  } catch {
+    return [WELCOME_MESSAGE];
+  }
+}
 
 
 function App() {
   const [input, setInput] = useState("");
 
-  const [messages, setMessages] = useState([
-    {
-      id: crypto.randomUUID(),
-      role: "assistant",
-      content:
-        "Hello! I am the Quantheonix AI Assistant. How can I help you?",
-    },
-  ]);
+  const [messages, setMessages] = useState(
+    loadStoredMessages,
+  );
 
-  const [conversationId, setConversationId] = useState(null);
+  const [conversationId, setConversationId] = useState(
+    () =>
+      localStorage.getItem(
+        STORAGE_KEYS.conversationId,
+      ) || null,
+  );
+
   const [isLoading, setIsLoading] = useState(false);
+  const [isResetting, setIsResetting] = useState(false);
   const [error, setError] = useState("");
+
+  const messagesEndRef = useRef(null);
+
+
+  useEffect(() => {
+    localStorage.setItem(
+      STORAGE_KEYS.messages,
+      JSON.stringify(messages),
+    );
+  }, [messages]);
+
+
+  useEffect(() => {
+    if (conversationId) {
+      localStorage.setItem(
+        STORAGE_KEYS.conversationId,
+        conversationId,
+      );
+    } else {
+      localStorage.removeItem(
+        STORAGE_KEYS.conversationId,
+      );
+    }
+  }, [conversationId]);
+
+
+  useEffect(() => {
+    messagesEndRef.current?.scrollIntoView({
+      behavior: "smooth",
+    });
+  }, [messages, isLoading]);
 
 
   async function handleSubmit(event) {
@@ -26,7 +103,7 @@ function App() {
 
     const userMessage = input.trim();
 
-    if (!userMessage || isLoading) {
+    if (!userMessage || isLoading || isResetting) {
       return;
     }
 
@@ -76,17 +153,65 @@ function App() {
   }
 
 
+  async function handleNewChat() {
+    if (isLoading || isResetting) {
+      return;
+    }
+
+    setError("");
+    setIsResetting(true);
+
+    try {
+      if (conversationId) {
+        await resetConversation(conversationId);
+      }
+
+      setConversationId(null);
+      setMessages([WELCOME_MESSAGE]);
+      setInput("");
+
+      localStorage.removeItem(
+        STORAGE_KEYS.conversationId,
+      );
+
+      localStorage.removeItem(
+        STORAGE_KEYS.messages,
+      );
+    } catch (requestError) {
+      setError(
+        requestError instanceof Error
+          ? requestError.message
+          : "The conversation could not be reset.",
+      );
+    } finally {
+      setIsResetting(false);
+    }
+  }
+
+
   return (
     <main className="app">
       <section className="chat">
         <header className="chat__header">
-          <div>
-            <h1>Quantheonix AI Assistant</h1>
-            <p>
-              {conversationId
-                ? `Conversation: ${conversationId}`
-                : "Start a new conversation"}
-            </p>
+          <div className="chat__heading">
+            <div>
+              <h1>Quantheonix AI Assistant</h1>
+
+              <p>
+                {conversationId
+                  ? `Conversation: ${conversationId}`
+                  : "Start a new conversation"}
+              </p>
+            </div>
+
+            <button
+              className="chat__reset-button"
+              type="button"
+              onClick={handleNewChat}
+              disabled={isLoading || isResetting}
+            >
+              {isResetting ? "Resetting..." : "New Chat"}
+            </button>
           </div>
         </header>
 
@@ -119,6 +244,8 @@ function App() {
               <p>Thinking...</p>
             </article>
           )}
+
+          <div ref={messagesEndRef} />
         </div>
 
         {error && (
@@ -142,16 +269,22 @@ function App() {
             id="chat-message"
             type="text"
             value={input}
-            onChange={(event) => setInput(event.target.value)}
+            onChange={(event) =>
+              setInput(event.target.value)
+            }
             placeholder="Type your message..."
             maxLength={2000}
-            disabled={isLoading}
+            disabled={isLoading || isResetting}
             autoComplete="off"
           />
 
           <button
             type="submit"
-            disabled={!input.trim() || isLoading}
+            disabled={
+              !input.trim() ||
+              isLoading ||
+              isResetting
+            }
           >
             {isLoading ? "Sending..." : "Send"}
           </button>

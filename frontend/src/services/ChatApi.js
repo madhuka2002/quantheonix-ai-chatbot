@@ -39,3 +39,35 @@ export async function sendChatMessage(message, conversationId = null) {
 
     return data;
 }
+
+
+export async function resetConversation(conversationId) {
+    if (!conversationId) {
+        return;
+    }
+
+    const response = await fetch(
+        `${API_BASE_URL}/api/conversations/${conversationId}`, {
+            method: "DELETE",
+            headers: {
+                Accept: "application/json",
+            },
+        },
+    );
+
+    let data;
+
+    try {
+        data = await response.json();
+    } catch {
+        throw new Error("The server returned an invalid response.");
+    }
+
+    if (!response.ok) {
+        throw new Error(
+            data.detail || "The conversation could not be reset.",
+        );
+    }
+
+    return data;
+}
