@@ -5,7 +5,7 @@ from pydantic import BaseModel, Field
 
 from ai_service import create_client, generate_reply
 from conversation_manager import ConversationManager
-from backend.logger import get_logger
+from logger import get_logger
 
 
 logger = get_logger(__name__)
@@ -18,7 +18,10 @@ app = FastAPI(
 )
 
 client = create_client()
-conversation_manager = ConversationManager(client)
+conversation_manager = ConversationManager(
+    client,
+    expiry_minutes=30,
+    )
 
 
 class ChatRequest(BaseModel):
@@ -57,6 +60,22 @@ def health_check() -> dict[str, str]:
     return {
         "status": "healthy"
     }
+
+class ConversationStatsResponse(BaseModel):
+    active_conversations: int
+
+@app.get(
+    "/api/conversations/stats",
+    response_model=ConversationStatsResponse,
+)
+def conversation_stats() -> ConversationStatsResponse:
+    active_count = (
+        conversation_manager.get_active_conversation_count()
+    )
+
+    return ConversationStatsResponse(
+        active_conversations=active_count,
+    )
 
 
 @app.post("/api/chat", response_model=ChatResponse)
@@ -122,15 +141,23 @@ def chat_endpoint(request: ChatRequest) -> ChatResponse:
 @app.delete(
     "/api/conversations/{conversation_id}",
     response_model=ResetConversationResponse,
+)
+def reset_conversation(
+    conversation_id: UUID,) -> ResetConversationResponse:
+    was_removed = conversation_manager.remove_chat(
+        str(conversation_id)
     )
-def reset_conversation(conversation_id: UUID) -> ResetConversationResponse:
-    conversation_manager.remove_chat(str(conversation_id))
 
-    logger.info(
-        "Conversation %s has been reset.",
-        conversation_id,
-    )
+    if was_removed:
+        logger.info(
+            "Conversation %s was reset",
+            conversation_id,
+        )
+
+        return ResetConversationResponse(
+            message="Conversation reset successfully.",
+        )
 
     return ResetConversationResponse(
-        message="Conversation has been reset successfully.",
+        message="Conversation did not exist or had already expired.",
     )
