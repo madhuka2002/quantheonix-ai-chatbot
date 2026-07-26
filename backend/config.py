@@ -7,8 +7,27 @@ load_dotenv()
 
 
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
-GEMINI_MODEL = os.getenv("GEMINI_MODEL", "gemini-flash-latest")
-GEMINI_TEMPERATURE = 0.7
+
+GEMINI_MODEL = os.getenv(
+    "GEMINI_MODEL",
+    "gemini-flash-latest",
+)
+
+GEMINI_TEMPERATURE = float(
+    os.getenv(
+        "GEMINI_TEMPERATURE",
+        "0.7",
+    )
+)
+
+ALLOWED_ORIGINS = [
+    origin.strip()
+    for origin in os.getenv(
+        "ALLOWED_ORIGINS",
+        "http://localhost:5173,http://127.0.0.1:5173",
+    ).split(",")
+    if origin.strip()
+]
 
 
 def validate_config() -> None:
