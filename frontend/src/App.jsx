@@ -6,6 +6,11 @@ import {
 
 import "./App.css";
 
+import ChatHeader from "./components/ChatHeader";
+import ChatInput from "./components/ChatInput";
+import ErrorBanner from "./components/ErrorBanner";
+import MessageList from "./components/MessageList";
+
 import {
   resetConversation,
   sendChatMessage,
@@ -68,10 +73,12 @@ function App() {
     );
 
   const [isLoading, setIsLoading] = useState(false);
+
   const [isResetting, setIsResetting] =
     useState(false);
 
   const [error, setError] = useState("");
+
   const [failedMessage, setFailedMessage] =
     useState(null);
 
@@ -192,7 +199,6 @@ function App() {
 
   async function handleSubmit(event) {
     event.preventDefault();
-
     await submitMessage(input);
   }
 
@@ -203,7 +209,6 @@ function App() {
       !event.shiftKey
     ) {
       event.preventDefault();
-
       submitMessage(input);
     }
   }
@@ -267,132 +272,37 @@ function App() {
   return (
     <main className="app">
       <section className="chat">
-        <header className="chat__header">
-          <div className="chat__heading">
-            <div>
-              <h1>Quantheonix AI Assistant</h1>
+        <ChatHeader
+          conversationId={conversationId}
+          isLoading={isLoading}
+          isResetting={isResetting}
+          onNewChat={handleNewChat}
+        />
 
-              <p>
-                {conversationId
-                  ? `Conversation: ${conversationId}`
-                  : "Start a new conversation"}
-              </p>
-            </div>
+        <MessageList
+          messages={messages}
+          isLoading={isLoading}
+          messagesEndRef={messagesEndRef}
+        />
 
-            <button
-              className="chat__reset-button"
-              type="button"
-              onClick={handleNewChat}
-              disabled={isLoading || isResetting}
-            >
-              {isResetting
-                ? "Resetting..."
-                : "New Chat"}
-            </button>
-          </div>
-        </header>
+        <ErrorBanner
+          error={error}
+          failedMessage={failedMessage}
+          isLoading={isLoading}
+          onRetry={handleRetry}
+        />
 
-        <div
-          className="chat__messages"
-          aria-live="polite"
-          aria-label="Chat messages"
-        >
-          {messages.map((message) => (
-            <article
-              className={`message message--${message.role}`}
-              key={message.id}
-            >
-              <span className="message__sender">
-                {message.role === "user"
-                  ? "You"
-                  : "Quantheonix"}
-              </span>
-
-              <p>{message.content}</p>
-            </article>
-          ))}
-
-          {isLoading && (
-            <article
-              className="message message--assistant"
-              aria-label="Quantheonix is typing"
-            >
-              <span className="message__sender">
-                Quantheonix
-              </span>
-
-              <div className="typing-indicator">
-                <span />
-                <span />
-                <span />
-              </div>
-            </article>
-          )}
-
-          <div ref={messagesEndRef} />
-        </div>
-
-        {error && (
-          <div
-            className="chat__error"
-            role="alert"
-          >
-            <p>{error}</p>
-
-            {failedMessage && (
-              <button
-                type="button"
-                onClick={handleRetry}
-                disabled={isLoading}
-              >
-                Retry
-              </button>
-            )}
-          </div>
-        )}
-
-        <form
-          className="chat__form"
+        <ChatInput
+          input={input}
+          isLoading={isLoading}
+          isResetting={isResetting}
+          textareaRef={textareaRef}
+          onInputChange={(event) =>
+            setInput(event.target.value)
+          }
+          onKeyDown={handleKeyDown}
           onSubmit={handleSubmit}
-        >
-          <label
-            className="sr-only"
-            htmlFor="chat-message"
-          >
-            Enter your message
-          </label>
-
-          <textarea
-            ref={textareaRef}
-            id="chat-message"
-            value={input}
-            onChange={(event) =>
-              setInput(event.target.value)
-            }
-            onKeyDown={handleKeyDown}
-            placeholder="Type your message..."
-            maxLength={2000}
-            rows={1}
-            disabled={isLoading || isResetting}
-            autoComplete="off"
-          />
-
-          <button
-            type="submit"
-            disabled={
-              !input.trim() ||
-              isLoading ||
-              isResetting
-            }
-          >
-            {isLoading ? "Sending..." : "Send"}
-          </button>
-        </form>
-
-        <p className="chat__hint">
-          Press Enter to send. Use Shift + Enter for
-          a new line.
-        </p>
+        />
       </section>
     </main>
   );
