@@ -17,6 +17,7 @@ const STORAGE_KEYS = {
   messages: "quantheonix_chat_messages",
 };
 
+
 const WELCOME_MESSAGE = {
   id: "welcome-message",
   role: "assistant",
@@ -37,7 +38,10 @@ function loadStoredMessages() {
 
     const parsedMessages = JSON.parse(storedMessages);
 
-    if (!Array.isArray(parsedMessages)) {
+    if (
+      !Array.isArray(parsedMessages) ||
+      parsedMessages.length === 0
+    ) {
       return [WELCOME_MESSAGE];
     }
 
@@ -55,18 +59,24 @@ function App() {
     loadStoredMessages,
   );
 
-  const [conversationId, setConversationId] = useState(
-    () =>
-      localStorage.getItem(
-        STORAGE_KEYS.conversationId,
-      ) || null,
-  );
+  const [conversationId, setConversationId] =
+    useState(
+      () =>
+        localStorage.getItem(
+          STORAGE_KEYS.conversationId,
+        ) || null,
+    );
 
   const [isLoading, setIsLoading] = useState(false);
-  const [isResetting, setIsResetting] = useState(false);
+  const [isResetting, setIsResetting] =
+    useState(false);
+
   const [error, setError] = useState("");
+  const [failedMessage, setFailedMessage] =
+    useState(null);
 
   const messagesEndRef = useRef(null);
+  const textareaRef = useRef(null);
 
 
   useEffect(() => {
@@ -95,25 +105,46 @@ function App() {
     messagesEndRef.current?.scrollIntoView({
       behavior: "smooth",
     });
-  }, [messages, isLoading]);
+  }, [messages, isLoading, error]);
 
 
-  async function handleSubmit(event) {
-    event.preventDefault();
+  useEffect(() => {
+    const textarea = textareaRef.current;
 
-    const userMessage = input.trim();
+    if (!textarea) {
+      return;
+    }
 
-    if (!userMessage || isLoading || isResetting) {
+    textarea.style.height = "auto";
+
+    const maximumHeight = 160;
+
+    textarea.style.height = `${Math.min(
+      textarea.scrollHeight,
+      maximumHeight,
+    )}px`;
+  }, [input]);
+
+
+  async function submitMessage(messageText) {
+    const cleanedMessage = messageText.trim();
+
+    if (
+      !cleanedMessage ||
+      isLoading ||
+      isResetting
+    ) {
       return;
     }
 
     setError("");
+    setFailedMessage(null);
     setInput("");
 
     const newUserMessage = {
       id: crypto.randomUUID(),
       role: "user",
-      content: userMessage,
+      content: cleanedMessage,
     };
 
     setMessages((currentMessages) => [
@@ -125,7 +156,7 @@ function App() {
 
     try {
       const data = await sendChatMessage(
-        userMessage,
+        cleanedMessage,
         conversationId,
       );
 
@@ -142,6 +173,8 @@ function App() {
         assistantMessage,
       ]);
     } catch (requestError) {
+      setFailedMessage(cleanedMessage);
+
       setError(
         requestError instanceof Error
           ? requestError.message
@@ -149,7 +182,44 @@ function App() {
       );
     } finally {
       setIsLoading(false);
+
+      requestAnimationFrame(() => {
+        textareaRef.current?.focus();
+      });
     }
+  }
+
+
+  async function handleSubmit(event) {
+    event.preventDefault();
+
+    await submitMessage(input);
+  }
+
+
+  function handleKeyDown(event) {
+    if (
+      event.key === "Enter" &&
+      !event.shiftKey
+    ) {
+      event.preventDefault();
+
+      submitMessage(input);
+    }
+  }
+
+
+  async function handleRetry() {
+    if (!failedMessage) {
+      return;
+    }
+
+    const messageToRetry = failedMessage;
+
+    setFailedMessage(null);
+    setError("");
+
+    await submitMessage(messageToRetry);
   }
 
 
@@ -159,6 +229,7 @@ function App() {
     }
 
     setError("");
+    setFailedMessage(null);
     setIsResetting(true);
 
     try {
@@ -177,6 +248,10 @@ function App() {
       localStorage.removeItem(
         STORAGE_KEYS.messages,
       );
+
+      requestAnimationFrame(() => {
+        textareaRef.current?.focus();
+      });
     } catch (requestError) {
       setError(
         requestError instanceof Error
@@ -210,7 +285,9 @@ function App() {
               onClick={handleNewChat}
               disabled={isLoading || isResetting}
             >
-              {isResetting ? "Resetting..." : "New Chat"}
+              {isResetting
+                ? "Resetting..."
+                : "New Chat"}
             </button>
           </div>
         </header>
@@ -236,12 +313,19 @@ function App() {
           ))}
 
           {isLoading && (
-            <article className="message message--assistant">
+            <article
+              className="message message--assistant"
+              aria-label="Quantheonix is typing"
+            >
               <span className="message__sender">
                 Quantheonix
               </span>
 
-              <p>Thinking...</p>
+              <div className="typing-indicator">
+                <span />
+                <span />
+                <span />
+              </div>
             </article>
           )}
 
@@ -249,9 +333,22 @@ function App() {
         </div>
 
         {error && (
-          <p className="chat__error" role="alert">
-            {error}
-          </p>
+          <div
+            className="chat__error"
+            role="alert"
+          >
+            <p>{error}</p>
+
+            {failedMessage && (
+              <button
+                type="button"
+                onClick={handleRetry}
+                disabled={isLoading}
+              >
+                Retry
+              </button>
+            )}
+          </div>
         )}
 
         <form
@@ -265,15 +362,17 @@ function App() {
             Enter your message
           </label>
 
-          <input
+          <textarea
+            ref={textareaRef}
             id="chat-message"
-            type="text"
             value={input}
             onChange={(event) =>
               setInput(event.target.value)
             }
+            onKeyDown={handleKeyDown}
             placeholder="Type your message..."
             maxLength={2000}
+            rows={1}
             disabled={isLoading || isResetting}
             autoComplete="off"
           />
@@ -289,6 +388,11 @@ function App() {
             {isLoading ? "Sending..." : "Send"}
           </button>
         </form>
+
+        <p className="chat__hint">
+          Press Enter to send. Use Shift + Enter for
+          a new line.
+        </p>
       </section>
     </main>
   );

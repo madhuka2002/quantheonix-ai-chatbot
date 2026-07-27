@@ -1,73 +1,97 @@
 const API_BASE_URL =
-    import.meta.env.VITE_API_BASE_URL || "http://127.0.0.1:8000";
+  import.meta.env.VITE_API_BASE_URL ||
+  "http://127.0.0.1:8000";
 
-/**
- * Send a message to the FastAPI chatbot.
- *
- * @param {string} message
- * @param {string | null} conversationId
- * @returns {Promise<{conversation_id: string, reply: string}>}
- */
-export async function sendChatMessage(message, conversationId = null) {
-    const response = await fetch(`${API_BASE_URL}/api/chat`, {
-        method: "POST",
 
-        headers: {
-            "Content-Type": "application/json",
-            Accept: "application/json",
-        },
-
-        body: JSON.stringify({
-            message,
-            conversation_id: conversationId,
-        }),
-    });
-
-    let data;
-
-    try {
-        data = await response.json();
-    } catch {
-        throw new Error("The server returned an invalid response.");
-    }
-
-    if (!response.ok) {
-        throw new Error(
-            data.detail || "The chatbot request failed.",
-        );
-    }
-
-    return data;
+async function parseResponse(response) {
+  try {
+    return await response.json();
+  } catch {
+    throw new Error(
+      "The server returned an invalid response.",
+    );
+  }
 }
 
 
-export async function resetConversation(conversationId) {
-    if (!conversationId) {
-        return;
-    }
+export async function sendChatMessage(
+  message,
+  conversationId = null,
+) {
+  let response;
 
-    const response = await fetch(
-        `${API_BASE_URL}/api/conversations/${conversationId}`, {
-            method: "DELETE",
-            headers: {
-                Accept: "application/json",
-            },
-        },
+  try {
+    response = await fetch(`${API_BASE_URL}/api/chat`, {
+      method: "POST",
+
+      headers: {
+        "Content-Type": "application/json",
+        Accept: "application/json",
+      },
+
+      body: JSON.stringify({
+        message,
+        conversation_id: conversationId,
+      }),
+    });
+  } catch {
+    throw new Error(
+      "Unable to connect to the chatbot server.",
     );
+  }
 
-    let data;
+  const data = await parseResponse(response);
 
-    try {
-        data = await response.json();
-    } catch {
-        throw new Error("The server returned an invalid response.");
+  if (!response.ok) {
+    if (response.status === 429) {
+      throw new Error(
+        "Too many messages were sent. Please wait a moment and try again.",
+      );
     }
 
-    if (!response.ok) {
-        throw new Error(
-            data.detail || "The conversation could not be reset.",
-        );
-    }
+    throw new Error(
+      data.detail || "The chatbot request failed.",
+    );
+  }
 
-    return data;
+  return data;
+}
+
+
+export async function resetConversation(
+  conversationId,
+) {
+  if (!conversationId) {
+    return null;
+  }
+
+  let response;
+
+  try {
+    response = await fetch(
+      `${API_BASE_URL}/api/conversations/${conversationId}`,
+      {
+        method: "DELETE",
+
+        headers: {
+          Accept: "application/json",
+        },
+      },
+    );
+  } catch {
+    throw new Error(
+      "Unable to connect to the chatbot server.",
+    );
+  }
+
+  const data = await parseResponse(response);
+
+  if (!response.ok) {
+    throw new Error(
+      data.detail ||
+        "The conversation could not be reset.",
+    );
+  }
+
+  return data;
 }
