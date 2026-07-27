@@ -2,6 +2,7 @@ const API_BASE_URL =
   import.meta.env.VITE_API_BASE_URL ||
   "http://127.0.0.1:8000";
 
+const API_V1_URL = `${API_BASE_URL}/api/v1`;
 
 async function parseResponse(response) {
   try {
@@ -13,6 +14,30 @@ async function parseResponse(response) {
   }
 }
 
+function extractApiErrorMessage(
+  responseData,
+  fallbackMessage,
+) {
+  if (
+    responseData?.error?.message &&
+    typeof responseData.error.message === "string"
+  ) {
+    const requestId =
+      responseData.error.request_id;
+
+    return requestId
+      ? `${responseData.error.message} (Request ID: ${requestId})`
+      : responseData.error.message;
+  }
+
+  if (
+    typeof responseData?.detail === "string"
+  ) {
+    return responseData.detail;
+  }
+
+  return fallbackMessage;
+}
 
 export async function sendChatMessage(
   message,
@@ -21,19 +46,24 @@ export async function sendChatMessage(
   let response;
 
   try {
-    response = await fetch(`${API_BASE_URL}/api/chat`, {
-      method: "POST",
+    response = await fetch(
+      `${API_V1_URL}/chat`,
+      {
+        method: "POST",
 
-      headers: {
-        "Content-Type": "application/json",
-        Accept: "application/json",
+        headers: {
+          "Content-Type":
+            "application/json",
+          Accept: "application/json",
+        },
+
+        body: JSON.stringify({
+          message,
+          conversation_id:
+            conversationId,
+        }),
       },
-
-      body: JSON.stringify({
-        message,
-        conversation_id: conversationId,
-      }),
-    });
+    );
   } catch {
     throw new Error(
       "Unable to connect to the chatbot server.",
@@ -45,18 +75,21 @@ export async function sendChatMessage(
   if (!response.ok) {
     if (response.status === 429) {
       throw new Error(
-        "Too many messages were sent. Please wait a moment and try again.",
+        "Too many requests. Please wait a moment and try again.",
       );
     }
 
-    throw new Error(
-      data.detail || "The chatbot request failed.",
-    );
+    const errorMessage =
+      extractApiErrorMessage(
+        data,
+        "The chatbot request failed.",
+      );
+
+    throw new Error(errorMessage);
   }
 
   return data;
 }
-
 
 export async function resetConversation(
   conversationId,
@@ -69,7 +102,7 @@ export async function resetConversation(
 
   try {
     response = await fetch(
-      `${API_BASE_URL}/api/conversations/${conversationId}`,
+      `${API_V1_URL}/conversations/${conversationId}`,
       {
         method: "DELETE",
 
@@ -87,10 +120,13 @@ export async function resetConversation(
   const data = await parseResponse(response);
 
   if (!response.ok) {
-    throw new Error(
-      data.detail ||
+    const errorMessage =
+      extractApiErrorMessage(
+        data,
         "The conversation could not be reset.",
-    );
+      );
+
+    throw new Error(errorMessage);
   }
 
   return data;
