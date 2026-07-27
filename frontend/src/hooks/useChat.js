@@ -13,25 +13,9 @@ import { useAutoResizeTextarea } from "./useAutoResizeTextarea";
 import { useLocalStorage } from "./useLocalStorage";
 
 
-function isValidMessage(message) {
-  return (
-    message &&
-    typeof message === "object" &&
-    typeof message.id === "string" &&
-    ["user", "assistant"].includes(
-      message.role,
-    ) &&
-    typeof message.content === "string"
-  );
-}
-
-
 const STORAGE_KEYS = {
-  conversationId:
-    "quantheonix_conversation_id",
-
-  messages:
-    "quantheonix_chat_messages",
+  conversationId: "quantheonix_conversation_id",
+  messages: "quantheonix_chat_messages",
 };
 
 
@@ -45,6 +29,17 @@ const WELCOME_MESSAGE = {
 
 function createInitialMessages() {
   return [WELCOME_MESSAGE];
+}
+
+
+function isValidMessage(message) {
+  return (
+    message &&
+    typeof message === "object" &&
+    typeof message.id === "string" &&
+    ["user", "assistant"].includes(message.role) &&
+    typeof message.content === "string"
+  );
 }
 
 
@@ -84,6 +79,14 @@ export function useChat() {
   const textareaRef = useRef(null);
 
 
+  const safeMessages =
+    Array.isArray(messages) &&
+    messages.length > 0 &&
+    messages.every(isValidMessage)
+      ? messages
+      : createInitialMessages();
+
+
   useAutoResizeTextarea(
     textareaRef,
     input,
@@ -95,7 +98,7 @@ export function useChat() {
     messagesEndRef.current?.scrollIntoView({
       behavior: "smooth",
     });
-  }, [messages, isLoading, error]);
+  }, [safeMessages, isLoading, error]);
 
 
   function focusTextarea() {
@@ -107,13 +110,13 @@ export function useChat() {
 
   async function submitMessage(
     messageText,
-    options={},
-) {
-    const {
-    addUserMessage = true,
-    } = options;
-
+    options = {},
+  ) {
     const cleanedMessage = messageText.trim();
+
+    const {
+      addUserMessage = true,
+    } = options;
 
     if (
       !cleanedMessage ||
@@ -128,16 +131,16 @@ export function useChat() {
     setInput("");
 
     if (addUserMessage) {
-        const userMessage = {
-            id: crypto.randomUUID(),
-            role: "user",
-            content: cleanedMessage,
-        };
+      const userMessage = {
+        id: crypto.randomUUID(),
+        role: "user",
+        content: cleanedMessage,
+      };
 
-        setMessages((currentMessages) => [
-            ...currentMessages,
-            userMessage,
-        ]);
+      setMessages((currentMessages) => [
+        ...currentMessages,
+        userMessage,
+      ]);
     }
 
     setIsLoading(true);
@@ -195,7 +198,6 @@ export function useChat() {
       !event.shiftKey
     ) {
       event.preventDefault();
-
       submitMessage(input);
     }
   }
@@ -212,10 +214,10 @@ export function useChat() {
     setError("");
 
     await submitMessage(
-        messageToRetry,
-        {
-            addUserMessage: false,
-        },
+      messageToRetry,
+      {
+        addUserMessage: false,
+      },
     );
   }
 
@@ -238,7 +240,6 @@ export function useChat() {
 
       removeStoredConversationId();
       removeStoredMessages();
-
       setInput("");
 
       focusTextarea();

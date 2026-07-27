@@ -1,3 +1,7 @@
+import CopyButton from "./CopyButton";
+import MarkdownMessage from "./MarkdownMessage";
+
+
 function MessageBubble({ message }) {
   const isUser = message.role === "user";
 
@@ -5,13 +9,31 @@ function MessageBubble({ message }) {
     <article
       className={`message message--${message.role}`}
     >
-      <span className="message__sender">
-        {isUser ? "You" : "Quantheonix"}
-      </span>
+      <div className="message__header">
+        <span className="message__sender">
+          {isUser ? "You" : "Quantheonix"}
+        </span>
 
-      <p>{message.content}</p>
+        <CopyButton
+          text={message.content}
+          defaultLabel="Copy"
+          copiedLabel="Copied"
+          className="message__copy-button"
+        />
+      </div>
+
+      {isUser ? (
+        <p className="message__plain-text">
+          {message.content}
+        </p>
+      ) : (
+        <MarkdownMessage
+          content={message.content}
+        />
+      )}
     </article>
   );
 }
+
 
 export default MessageBubble;
