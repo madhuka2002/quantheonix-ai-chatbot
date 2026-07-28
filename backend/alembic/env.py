@@ -10,7 +10,7 @@ from sqlalchemy.ext.asyncio import (
 from app.core.config import settings
 from app.db.base import Base
 import app.models  # noqa: F401
-
+target_metadata = Base.metadata
 
 config = context.config
 
