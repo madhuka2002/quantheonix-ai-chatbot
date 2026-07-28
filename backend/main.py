@@ -28,6 +28,7 @@ from app.core.logging import configure_logging
 from app.core.middleware import (
     RequestContextMiddleware,
 )
+from app.db.session import close_database_engine
 
 
 configure_logging(
@@ -48,6 +49,8 @@ async def lifespan(
     )
 
     yield
+
+    await close_database_engine()
 
     logger.info(
         "Stopping %s",

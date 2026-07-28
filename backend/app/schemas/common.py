@@ -38,3 +38,17 @@ class ErrorDetail(BaseModel):
 
 class ErrorResponse(BaseModel):
     error: ErrorDetail
+
+
+class HealthResponse(BaseModel):
+    status: Literal[
+        "healthy",
+        "degraded",
+    ]
+
+    service: str
+    version: str
+    database: Literal[
+        "connected",
+        "unavailable",
+    ]
