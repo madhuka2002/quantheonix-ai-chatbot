@@ -1,3 +1,5 @@
+from collections.abc import Sequence
+
 from google import genai
 from google.genai import types
 
@@ -11,27 +13,85 @@ from prompts import SYSTEM_INSTRUCTION
 
 
 def create_client() -> genai.Client:
-    """Create and return the Gemini API client."""
+    """
+    Create and return the Gemini API client.
+    """
+
     validate_config()
-    return genai.Client(api_key=GEMINI_API_KEY)
+
+    return genai.Client(
+        api_key=GEMINI_API_KEY,
+    )
 
 
-def create_chat(client: genai.Client):
-    """Create a configured Gemini chat session."""
+def create_chat(
+    client: genai.Client,
+    history: Sequence[types.Content] | None = None,
+):
+    """
+    Create a configured Gemini chat session.
+
+    The optional history parameter allows an existing
+    conversation to be reconstructed from database messages.
+    """
+
     return client.chats.create(
         model=GEMINI_MODEL,
         config=types.GenerateContentConfig(
             system_instruction=SYSTEM_INSTRUCTION,
             temperature=GEMINI_TEMPERATURE,
         ),
+        history=list(history) if history else None,
     )
 
 
-def generate_reply(chat, user_message: str) -> str:
-    """Send a message through the active chat session."""
-    response = chat.send_message(user_message)
+def create_history_content(
+    *,
+    role: str,
+    content: str,
+) -> types.Content:
+    """
+    Convert a stored application message into Gemini history.
+
+    Application roles:
+    - user      -> Gemini user
+    - assistant -> Gemini model
+    """
+
+    if role == "assistant":
+        gemini_role = "model"
+    elif role == "user":
+        gemini_role = "user"
+    else:
+        raise ValueError(
+            f"Unsupported conversation role: {role}"
+        )
+
+    return types.Content(
+        role=gemini_role,
+        parts=[
+            types.Part.from_text(
+                text=content,
+            )
+        ],
+    )
+
+
+def generate_reply(
+    chat,
+    user_message: str,
+) -> str:
+    """
+    Send a message through the active chat session.
+    """
+
+    response = chat.send_message(
+        user_message,
+    )
 
     if not response.text:
-        return "The model did not return a text response."
+        return (
+            "The model did not return a text response."
+        )
 
     return response.text
