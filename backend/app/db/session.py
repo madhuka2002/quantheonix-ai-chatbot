@@ -1,3 +1,5 @@
+from collections.abc import AsyncGenerator
+
 from sqlalchemy.ext.asyncio import (
     AsyncEngine,
     AsyncSession,
@@ -21,6 +23,19 @@ AsyncSessionFactory = async_sessionmaker(
     autoflush=False,
     expire_on_commit=False,
 )
+
+
+async def get_database_session(
+) -> AsyncGenerator[AsyncSession, None]:
+    """
+    Provide one asynchronous database session per request.
+
+    The service layer controls commits and rollbacks.
+    The dependency only creates and closes the session.
+    """
+
+    async with AsyncSessionFactory() as session:
+        yield session
 
 
 async def close_database_engine() -> None:

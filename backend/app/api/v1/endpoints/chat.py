@@ -1,14 +1,21 @@
 import logging
+from typing import Annotated
 
-from fastapi import APIRouter, HTTPException, status
+from fastapi import (
+    APIRouter,
+    Depends,
+    status,
+)
+from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.db.session import get_database_session
 from app.schemas.chat import (
     ChatRequest,
     ChatResponse,
 )
 from app.schemas.common import MessageResponse
-from app.services.chatbot_service import (
-    chatbot_service,
+from app.services.database_chat_service import (
+    DatabaseChatService,
 )
 
 
@@ -17,21 +24,31 @@ logger = logging.getLogger(__name__)
 router = APIRouter()
 
 
+DatabaseSession = Annotated[
+    AsyncSession,
+    Depends(get_database_session),
+]
+
+
 @router.post(
     "/chat",
     response_model=ChatResponse,
     status_code=status.HTTP_200_OK,
     summary="Send a chat message",
     description=(
-        "Sends a message to the Quantheonix AI "
-        "assistant and returns the generated reply."
+        "Sends a message to the Quantheonix AI assistant, "
+        "stores the conversation in PostgreSQL, and returns "
+        "the generated reply."
     ),
     responses={
+        404: {
+            "description": "Conversation not found.",
+        },
         422: {
             "description": "Request validation failed.",
         },
         429: {
-            "description": "Rate limit exceeded.",
+            "description": "AI provider rate limit exceeded.",
         },
         500: {
             "description": "AI response generation failed.",
@@ -40,84 +57,51 @@ router = APIRouter()
 )
 async def send_chat_message(
     request: ChatRequest,
+    session: DatabaseSession,
 ) -> ChatResponse:
-    try:
-        result = await chatbot_service.send_message(
-            message=request.message,
-            conversation_id=request.conversation_id,
-        )
+    service = DatabaseChatService(session)
 
-        return ChatResponse(
-            conversation_id=result[
-                "conversation_id"
-            ],
-            reply=result["reply"],
-        )
+    result = await service.send_message(
+        message=request.message,
+        conversation_id=request.conversation_id,
+    )
 
-    except HTTPException:
-        raise
-
-    except Exception as exc:
-        logger.exception(
-            "Chat message processing failed."
-        )
-
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=(
-                "The assistant could not generate "
-                "a response."
-            ),
-        ) from exc
+    return ChatResponse(
+        conversation_id=result["conversation_id"],
+        reply=result["reply"],
+    )
 
 
 @router.delete(
     "/conversations/{conversation_id}",
     response_model=MessageResponse,
+    status_code=status.HTTP_200_OK,
     summary="Delete a conversation",
     description=(
-        "Deletes the server-side memory associated "
-        "with the provided conversation identifier."
+        "Permanently deletes a stored conversation and all "
+        "of its messages."
     ),
     responses={
         404: {
             "description": "Conversation not found.",
         },
+        500: {
+            "description": (
+                "The conversation could not be deleted."
+            ),
+        },
     },
 )
 async def delete_conversation(
     conversation_id: str,
+    session: DatabaseSession,
 ) -> MessageResponse:
-    try:
-        deleted = (
-            await chatbot_service.reset_conversation(
-                conversation_id
-            )
-        )
+    service = DatabaseChatService(session)
 
-        if not deleted:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="Conversation not found.",
-            )
+    await service.delete_conversation(
+        conversation_id
+    )
 
-        return MessageResponse(
-            message=(
-                "Conversation deleted successfully."
-            )
-        )
-
-    except HTTPException:
-        raise
-
-    except Exception as exc:
-        logger.exception(
-            "Conversation deletion failed."
-        )
-
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=(
-                "The conversation could not be deleted."
-            ),
-        ) from exc
+    return MessageResponse(
+        message="Conversation deleted successfully."
+    )
