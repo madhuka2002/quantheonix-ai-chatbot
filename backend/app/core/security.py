@@ -1,5 +1,16 @@
+from datetime import UTC, datetime, timedelta
+from uuid import UUID
+
+import jwt
+from jwt import ExpiredSignatureError, InvalidTokenError as JWTInvalidTokenError
 from pwdlib import PasswordHash
 from pwdlib.exceptions import UnknownHashError
+
+from app.core.config import settings
+from app.core.exceptions import (
+    ExpiredTokenError,
+    InvalidTokenError,
+)
 
 
 password_hash = PasswordHash.recommended()
@@ -7,7 +18,7 @@ password_hash = PasswordHash.recommended()
 
 def hash_password(password: str) -> str:
     """
-    Create a secure Argon2 hash for a plain-text password.
+    Generate a secure Argon2 password hash.
     """
 
     return password_hash.hash(password)
@@ -18,10 +29,10 @@ def verify_password(
     hashed_password: str,
 ) -> bool:
     """
-    Verify a plain-text password against its stored hash.
+    Verify a plain-text password against an Argon2 hash.
 
-    Invalid, unsupported, or damaged hashes are treated
-    as failed verification.
+    Unknown, unsupported, or damaged hashes are treated
+    as failed password verification.
     """
 
     try:
@@ -35,3 +46,75 @@ def verify_password(
         ValueError,
     ):
         return False
+
+
+def create_access_token(
+    user_id: UUID,
+    expires_delta: timedelta | None = None,
+) -> str:
+    """
+    Generate a signed JWT access token for a user.
+    """
+
+    issued_at = datetime.now(UTC)
+
+    expiration = issued_at + (
+        expires_delta
+        if expires_delta is not None
+        else timedelta(
+            minutes=settings.access_token_expire_minutes,
+        )
+    )
+
+    payload = {
+        "sub": str(user_id),
+        "type": "access",
+        "iat": issued_at,
+        "exp": expiration,
+    }
+
+    return jwt.encode(
+        payload,
+        settings.jwt_secret_key,
+        algorithm=settings.jwt_algorithm,
+    )
+
+
+def decode_access_token(token: str) -> UUID:
+    """
+    Validate and decode an access token.
+
+    Returns the authenticated user's UUID when valid.
+    """
+
+    try:
+        payload = jwt.decode(
+            token,
+            settings.jwt_secret_key,
+            algorithms=[settings.jwt_algorithm],
+            options={
+                "require": [
+                    "sub",
+                    "type",
+                    "iat",
+                    "exp",
+                ],
+            },
+        )
+    except ExpiredSignatureError as error:
+        raise ExpiredTokenError() from error
+    except JWTInvalidTokenError as error:
+        raise InvalidTokenError() from error
+
+    if payload.get("type") != "access":
+        raise InvalidTokenError()
+
+    subject = payload.get("sub")
+
+    if not isinstance(subject, str):
+        raise InvalidTokenError()
+
+    try:
+        return UUID(subject)
+    except (TypeError, ValueError) as error:
+        raise InvalidTokenError() from error

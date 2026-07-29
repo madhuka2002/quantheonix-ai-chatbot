@@ -11,6 +11,19 @@ from app.models.user import User
 from app.repositories.user_repository import UserRepository
 from app.schemas.user import UserCreate
 
+from app.core.security import (
+    create_access_token,
+    hash_password,
+    verify_password,
+)
+
+from dataclasses import dataclass
+from app.models.user import User
+
+@dataclass(slots=True)
+class LoginResult:
+    access_token: str
+    user: User
 
 class AuthService:
     def __init__(
@@ -103,3 +116,24 @@ class AuthService:
             raise InactiveUserError()
 
         return user
+
+    async def login(
+        self,
+        identifier: str,
+        password: str,
+    ) -> LoginResult:
+        """
+        Authenticate a user and issue an access token.
+        """
+
+        user = await self.authenticate_user(
+            identifier=identifier,
+            password=password,
+        )
+
+        access_token = create_access_token(user.id)
+
+        return LoginResult(
+            access_token=access_token,
+            user=user,
+        )

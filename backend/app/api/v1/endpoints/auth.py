@@ -12,6 +12,13 @@ from app.schemas.auth import RegistrationResponse
 from app.schemas.user import UserCreate, UserResponse
 from app.services.auth_service import AuthService
 
+from app.core.config import settings
+from app.schemas.auth import (
+    LoginRequest,
+    RegistrationResponse,
+    TokenResponse,
+)
+
 
 router = APIRouter(
     prefix="/auth",
@@ -53,4 +60,41 @@ async def register_user(
     return RegistrationResponse(
         message="User registered successfully.",
         user=UserResponse.model_validate(user),
+    )
+
+@router.post(
+    "/login",
+    response_model=TokenResponse,
+    status_code=status.HTTP_200_OK,
+    summary="Log in",
+    responses={
+        status.HTTP_401_UNAUTHORIZED: {
+            "description": "Invalid login credentials.",
+        },
+        status.HTTP_403_FORBIDDEN: {
+            "description": "The account is inactive.",
+        },
+        status.HTTP_422_UNPROCESSABLE_ENTITY: {
+            "description": "Request validation failed.",
+        },
+    },
+)
+async def login(
+    login_data: LoginRequest,
+    session: DatabaseSession,
+) -> TokenResponse:
+    service = AuthService(session)
+
+    result = await service.login(
+        identifier=login_data.identifier,
+        password=login_data.password,
+    )
+
+    return TokenResponse(
+        access_token=result.access_token,
+        token_type="bearer",
+        expires_in=(
+            settings.access_token_expire_minutes * 60
+        ),
+        user=UserResponse.model_validate(result.user),
     )

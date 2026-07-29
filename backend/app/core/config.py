@@ -12,6 +12,10 @@ class Settings(BaseSettings):
     app_version: str = "0.3.0"
     debug: bool = True
 
+    jwt_secret_key: str
+    jwt_algorithm: str = "HS256"
+    access_token_expire_minutes: int = 30
+
     api_v1_prefix: str = "/api/v1"
 
     gemini_api_key: str = Field(
