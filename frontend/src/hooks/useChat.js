@@ -5,6 +5,7 @@ import {
 } from "react";
 
 import {
+  getConversation,
   resetConversation,
   sendChatMessage,
 } from "../services/chatApi";
@@ -43,6 +44,38 @@ function isValidMessage(message) {
 }
 
 
+function convertStoredMessages(
+  storedMessages,
+) {
+  if (!Array.isArray(storedMessages)) {
+    return createInitialMessages();
+  }
+
+  const restoredMessages = storedMessages
+    .filter((message) => {
+      return (
+        message &&
+        typeof message.id === "string" &&
+        ["user", "assistant"].includes(
+          message.role,
+        ) &&
+        typeof message.content === "string"
+      );
+    })
+    .map((message) => ({
+      id: message.id,
+      role: message.role,
+      content: message.content,
+      createdAt: message.created_at ?? null,
+    }));
+
+  return [
+    WELCOME_MESSAGE,
+    ...restoredMessages,
+  ];
+}
+
+
 export function useChat() {
   const [input, setInput] = useState("");
 
@@ -67,6 +100,9 @@ export function useChat() {
   const [isLoading, setIsLoading] =
     useState(false);
 
+  const [isRestoring, setIsRestoring] =
+    useState(Boolean(conversationId));
+
   const [isResetting, setIsResetting] =
     useState(false);
 
@@ -78,6 +114,9 @@ export function useChat() {
   const messagesEndRef = useRef(null);
   const textareaRef = useRef(null);
 
+  const hasRestoredConversationRef =
+    useRef(false);
+
 
   const safeMessages =
     Array.isArray(messages) &&
@@ -85,6 +124,12 @@ export function useChat() {
     messages.every(isValidMessage)
       ? messages
       : createInitialMessages();
+
+
+  const isBusy =
+    isLoading ||
+    isRestoring ||
+    isResetting;
 
 
   useAutoResizeTextarea(
@@ -98,7 +143,83 @@ export function useChat() {
     messagesEndRef.current?.scrollIntoView({
       behavior: "smooth",
     });
-  }, [safeMessages, isLoading, error]);
+  }, [
+    safeMessages,
+    isLoading,
+    isRestoring,
+    error,
+  ]);
+
+
+  useEffect(() => {
+    if (hasRestoredConversationRef.current) {
+      return undefined;
+    }
+
+    hasRestoredConversationRef.current = true;
+
+    if (!conversationId) {
+      return undefined;
+    }
+
+    let isCancelled = false;
+
+    async function restoreConversation() {
+      try {
+        const conversation =
+          await getConversation(
+            conversationId,
+          );
+
+        if (isCancelled) {
+          return;
+        }
+
+        const restoredMessages =
+          convertStoredMessages(
+            conversation.messages,
+          );
+
+        setMessages(restoredMessages);
+      } catch (requestError) {
+        if (isCancelled) {
+          return;
+        }
+
+        if (requestError?.status === 404) {
+          removeStoredConversationId();
+          removeStoredMessages();
+
+          setError(
+            "The previous conversation no longer exists. A new chat has been started.",
+          );
+
+          return;
+        }
+
+        setError(
+          requestError instanceof Error
+            ? requestError.message
+            : "The conversation could not be restored.",
+        );
+      } finally {
+        if (!isCancelled) {
+          setIsRestoring(false);
+        }
+      }
+    }
+
+    restoreConversation();
+
+    return () => {
+      isCancelled = true;
+    };
+  }, [
+    conversationId,
+    removeStoredConversationId,
+    removeStoredMessages,
+    setMessages,
+  ]);
 
 
   function focusTextarea() {
@@ -112,7 +233,8 @@ export function useChat() {
     messageText,
     options = {},
   ) {
-    const cleanedMessage = messageText.trim();
+    const cleanedMessage =
+      messageText.trim();
 
     const {
       addUserMessage = true,
@@ -120,8 +242,7 @@ export function useChat() {
 
     if (
       !cleanedMessage ||
-      isLoading ||
-      isResetting
+      isBusy
     ) {
       return;
     }
@@ -204,11 +325,12 @@ export function useChat() {
 
 
   async function handleRetry() {
-    if (!failedMessage) {
+    if (!failedMessage || isBusy) {
       return;
     }
 
-    const messageToRetry = failedMessage;
+    const messageToRetry =
+      failedMessage;
 
     setFailedMessage(null);
     setError("");
@@ -223,7 +345,7 @@ export function useChat() {
 
 
   async function handleNewChat() {
-    if (isLoading || isResetting) {
+    if (isBusy) {
       return;
     }
 
@@ -233,7 +355,9 @@ export function useChat() {
 
     try {
       if (conversationId) {
-        await resetConversation(conversationId);
+        await resetConversation(
+          conversationId,
+        );
       }
     } catch (requestError) {
       console.error(
@@ -254,7 +378,9 @@ export function useChat() {
     input,
     messages: safeMessages,
     conversationId,
-    isLoading,
+    isLoading:
+      isLoading || isRestoring,
+    isRestoring,
     isResetting,
     error,
     failedMessage,
