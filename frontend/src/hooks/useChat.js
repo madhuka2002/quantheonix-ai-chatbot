@@ -233,24 +233,19 @@ export function useChat() {
 
     try {
       if (conversationId) {
-        await resetConversation(
-          conversationId,
-        );
+        await resetConversation(conversationId);
       }
-
+    } catch (requestError) {
+      console.error(
+        "The stored conversation could not be deleted:",
+        requestError,
+      );
+    } finally {
       removeStoredConversationId();
       removeStoredMessages();
       setInput("");
-
-      focusTextarea();
-    } catch (requestError) {
-      setError(
-        requestError instanceof Error
-          ? requestError.message
-          : "The conversation could not be reset.",
-      );
-    } finally {
       setIsResetting(false);
+      focusTextarea();
     }
   }
 
