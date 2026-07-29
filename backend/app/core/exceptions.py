@@ -45,3 +45,34 @@ class ChatGenerationError(ApplicationError):
             ),
             status_code=500,
         )
+
+
+class UserAlreadyExistsError(ApplicationError):
+    status_code = 409
+    error_code = "user_already_exists"
+    default_message = (
+        "A user with this email or username "
+        "already exists."
+    )
+
+
+class InvalidCredentialsError(ApplicationError):
+    status_code = 401
+    error_code = "invalid_credentials"
+    default_message = (
+        "The email, username, or password is incorrect."
+    )
+
+
+class UserNotFoundError(ApplicationError):
+    status_code = 404
+    error_code = "user_not_found"
+    default_message = "The requested user was not found."
+
+
+class InactiveUserError(ApplicationError):
+    status_code = 403
+    error_code = "inactive_user"
+    default_message = (
+        "This user account is inactive."
+    )
