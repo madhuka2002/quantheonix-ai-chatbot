@@ -8,17 +8,18 @@ from fastapi import (
 )
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.api.dependencies import CurrentUser
 from app.db.session import get_database_session
 from app.schemas.chat import (
     ChatRequest,
     ChatResponse,
 )
 from app.schemas.common import MessageResponse
-from app.services.database_chat_service import (
-    DatabaseChatService,
-)
 from app.schemas.conversation import (
     ConversationDetailResponse,
+)
+from app.services.database_chat_service import (
+    DatabaseChatService,
 )
 
 
@@ -44,6 +45,9 @@ DatabaseSession = Annotated[
         "the generated reply."
     ),
     responses={
+        401: {
+            "description": "Authentication is required.",
+        },
         404: {
             "description": "Conversation not found.",
         },
@@ -61,6 +65,7 @@ DatabaseSession = Annotated[
 async def send_chat_message(
     request: ChatRequest,
     session: DatabaseSession,
+    current_user: CurrentUser,
 ) -> ChatResponse:
     service = DatabaseChatService(session)
 
@@ -85,6 +90,9 @@ async def send_chat_message(
         "from PostgreSQL."
     ),
     responses={
+        401: {
+            "description": "Authentication is required.",
+        },
         404: {
             "description": "Conversation not found.",
         },
@@ -98,17 +106,18 @@ async def send_chat_message(
 async def get_conversation(
     conversation_id: str,
     session: DatabaseSession,
+    current_user: CurrentUser,
 ) -> ConversationDetailResponse:
     service = DatabaseChatService(session)
 
     conversation = await service.get_conversation(
-        conversation_id
+        conversation_id,
     )
 
     return ConversationDetailResponse.model_validate(
-        conversation
+        conversation,
     )
-    
+
 
 @router.delete(
     "/conversations/{conversation_id}",
@@ -120,6 +129,9 @@ async def get_conversation(
         "of its messages."
     ),
     responses={
+        401: {
+            "description": "Authentication is required.",
+        },
         404: {
             "description": "Conversation not found.",
         },
@@ -133,13 +145,14 @@ async def get_conversation(
 async def delete_conversation(
     conversation_id: str,
     session: DatabaseSession,
+    current_user: CurrentUser,
 ) -> MessageResponse:
     service = DatabaseChatService(session)
 
     await service.delete_conversation(
-        conversation_id
+        conversation_id,
     )
 
     return MessageResponse(
-        message="Conversation deleted successfully."
+        message="Conversation deleted successfully.",
     )

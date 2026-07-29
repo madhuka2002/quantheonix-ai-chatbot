@@ -6,6 +6,10 @@ from app.db.base import (
     TimestampMixin,
     UUIDPrimaryKeyMixin,
 )
+from typing import TYPE_CHECKING
+if TYPE_CHECKING:
+    from app.models.conversation import Conversation
+from sqlalchemy.orm import relationship
 
 
 class User(
@@ -52,3 +56,8 @@ class User(
         default=False,
         server_default="false",
     )
+
+conversations: Mapped[list["Conversation"]] = relationship(
+    back_populates="user",
+    cascade="all, delete-orphan",
+)

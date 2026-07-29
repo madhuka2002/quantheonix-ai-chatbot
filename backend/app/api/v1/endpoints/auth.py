@@ -18,6 +18,12 @@ from app.schemas.auth import (
     RegistrationResponse,
     TokenResponse,
 )
+from app.api.dependencies import (
+    get_current_user,
+)
+from fastapi import Depends
+from typing import Annotated
+from app.api.dependencies import CurrentUser
 
 
 router = APIRouter(
@@ -30,7 +36,6 @@ DatabaseSession = Annotated[
     AsyncSession,
     Depends(get_database_session),
 ]
-
 
 @router.post(
     "/register",
@@ -98,3 +103,13 @@ async def login(
         ),
         user=UserResponse.model_validate(result.user),
     )
+
+@router.get(
+    "/me",
+    response_model=UserResponse,
+    summary="Get current user",
+)
+async def get_current_user_profile(
+    current_user: CurrentUser,
+) -> UserResponse:
+    return UserResponse.model_validate(current_user)

@@ -4,9 +4,11 @@ from typing import TYPE_CHECKING
 from sqlalchemy import (
     Boolean,
     DateTime,
+    ForeignKey,
     String,
     Text,
 )
+from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import (
     Mapped,
     mapped_column,
@@ -19,9 +21,9 @@ from app.db.base import (
     UUIDPrimaryKeyMixin,
 )
 
-
 if TYPE_CHECKING:
     from app.models.message import Message
+    from app.models.user import User
 
 
 class Conversation(
@@ -30,6 +32,16 @@ class Conversation(
     Base,
 ):
     __tablename__ = "conversations"
+
+    user_id: Mapped[UUID] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey(
+            "users.id",
+            ondelete="CASCADE",
+        ),
+        nullable=False,
+        index=True,
+    )
 
     title: Mapped[str | None] = mapped_column(
         String(200),
@@ -58,6 +70,10 @@ class Conversation(
     ] = mapped_column(
         DateTime(timezone=True),
         nullable=True,
+    )
+
+    user: Mapped["User"] = relationship(
+        back_populates="conversations",
     )
 
     messages: Mapped[list["Message"]] = relationship(
