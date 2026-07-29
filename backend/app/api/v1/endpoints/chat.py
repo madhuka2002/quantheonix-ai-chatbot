@@ -17,6 +17,9 @@ from app.schemas.common import MessageResponse
 from app.services.database_chat_service import (
     DatabaseChatService,
 )
+from app.schemas.conversation import (
+    ConversationDetailResponse,
+)
 
 
 logger = logging.getLogger(__name__)
@@ -71,6 +74,41 @@ async def send_chat_message(
         reply=result["reply"],
     )
 
+
+@router.get(
+    "/conversations/{conversation_id}",
+    response_model=ConversationDetailResponse,
+    status_code=status.HTTP_200_OK,
+    summary="Get a conversation",
+    description=(
+        "Returns a stored conversation and its messages "
+        "from PostgreSQL."
+    ),
+    responses={
+        404: {
+            "description": "Conversation not found.",
+        },
+        500: {
+            "description": (
+                "The conversation could not be loaded."
+            ),
+        },
+    },
+)
+async def get_conversation(
+    conversation_id: str,
+    session: DatabaseSession,
+) -> ConversationDetailResponse:
+    service = DatabaseChatService(session)
+
+    conversation = await service.get_conversation(
+        conversation_id
+    )
+
+    return ConversationDetailResponse.model_validate(
+        conversation
+    )
+    
 
 @router.delete(
     "/conversations/{conversation_id}",

@@ -120,6 +120,35 @@ class DatabaseChatService:
             # arguments in the current exception definition.
             raise ChatGenerationError() from exc
 
+    async def get_conversation(
+        self,
+        conversation_id: str,
+    ):
+        """
+        Load an active conversation and all stored messages.
+
+        Messages are eagerly loaded by the repository, preventing
+        asynchronous lazy-loading errors.
+        """
+
+        conversation_uuid = self._parse_conversation_id(
+            conversation_id
+        )
+
+        conversation = (
+            await self._repository
+            .get_conversation_with_messages(
+                conversation_uuid
+            )
+        )
+
+        if conversation is None:
+            raise ConversationNotFoundError(
+                conversation_id
+            )
+
+        return conversation
+
     async def delete_conversation(
         self,
         conversation_id: str,
