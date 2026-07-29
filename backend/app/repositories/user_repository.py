@@ -72,22 +72,18 @@ class UserRepository:
         self,
         identifier: str,
     ) -> User | None:
-        normalized_identifier = (
-            identifier.strip().lower()
-        )
+        normalized_identifier = identifier.strip()
 
         statement = select(User).where(
             or_(
                 User.email
-                == normalized_identifier,
+                == self.normalize_email(normalized_identifier),
                 User.username
-                == normalized_identifier,
+                == self.normalize_username(normalized_identifier),
             )
         )
 
-        result = await self._session.execute(
-            statement,
-        )
+        result = await self._session.execute(statement)
 
         return result.scalar_one_or_none()
 
