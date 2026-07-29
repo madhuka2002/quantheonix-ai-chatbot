@@ -48,31 +48,38 @@ class ChatGenerationError(ApplicationError):
 
 
 class UserAlreadyExistsError(ApplicationError):
-    status_code = 409
-    error_code = "user_already_exists"
-    default_message = (
-        "A user with this email or username "
-        "already exists."
-    )
+    def __init__(self) -> None:
+        super().__init__(
+            code="user_already_exists",
+            message=(
+                "A user with this email or username "
+                "already exists."
+            ),
+        )
 
 
 class InvalidCredentialsError(ApplicationError):
-    status_code = 401
-    error_code = "invalid_credentials"
-    default_message = (
-        "The email, username, or password is incorrect."
-    )
+    def __init__(self) -> None:
+        super().__init__(
+            code="invalid_credentials",
+            message=(
+                "The email, username, or password "
+                "is incorrect."
+            ),
+        )
 
 
 class UserNotFoundError(ApplicationError):
-    status_code = 404
-    error_code = "user_not_found"
-    default_message = "The requested user was not found."
+    def __init__(self) -> None:
+        super().__init__(
+            code="user_not_found",
+            message="The requested user was not found.",
+        )
 
 
 class InactiveUserError(ApplicationError):
-    status_code = 403
-    error_code = "inactive_user"
-    default_message = (
-        "This user account is inactive."
-    )
+    def __init__(self) -> None:
+        super().__init__(
+            code="inactive_user",
+            message="This user account is inactive.",
+        )
