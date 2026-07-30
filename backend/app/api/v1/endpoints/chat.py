@@ -70,6 +70,7 @@ async def send_chat_message(
     service = DatabaseChatService(session)
 
     result = await service.send_message(
+        user_id=current_user.id,
         message=request.message,
         conversation_id=request.conversation_id,
     )
@@ -111,7 +112,8 @@ async def get_conversation(
     service = DatabaseChatService(session)
 
     conversation = await service.get_conversation(
-        conversation_id,
+        conversation_id=conversation_id,
+        user_id=current_user.id,
     )
 
     return ConversationDetailResponse.model_validate(
@@ -150,7 +152,8 @@ async def delete_conversation(
     service = DatabaseChatService(session)
 
     await service.delete_conversation(
-        conversation_id,
+        conversation_id=conversation_id,
+        user_id=current_user.id,
     )
 
     return MessageResponse(

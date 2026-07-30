@@ -1,5 +1,11 @@
 from sqlalchemy import Boolean, String
-from sqlalchemy.orm import Mapped, mapped_column
+from typing import TYPE_CHECKING
+
+from sqlalchemy.orm import (
+    Mapped,
+    mapped_column,
+    relationship,
+)
 
 from app.db.base import (
     Base,
@@ -11,6 +17,9 @@ if TYPE_CHECKING:
     from app.models.conversation import Conversation
 from sqlalchemy.orm import relationship
 
+
+if TYPE_CHECKING:
+    from app.models.conversation import Conversation
 
 class User(
     UUIDPrimaryKeyMixin,
@@ -55,6 +64,11 @@ class User(
         nullable=False,
         default=False,
         server_default="false",
+    )
+
+    conversations: Mapped[list["Conversation"]] = relationship(
+        back_populates="user",
+        cascade="all, delete-orphan",
     )
 
 conversations: Mapped[list["Conversation"]] = relationship(
