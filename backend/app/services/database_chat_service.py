@@ -74,9 +74,7 @@ class DatabaseChatService:
                 )
 
                 if conversation is None:
-                    raise ConversationNotFoundError(
-                        conversation_id,
-                    )
+                    raise ConversationNotFoundError()
 
                 history = self._build_history(
                     conversation.messages,
@@ -101,9 +99,7 @@ class DatabaseChatService:
             )
 
             if user_message is None:
-                raise ConversationNotFoundError(
-                    str(conversation.id),
-                )
+                raise ConversationNotFoundError()
 
             assistant_message = (
                 await self._repository.add_message(
@@ -115,9 +111,7 @@ class DatabaseChatService:
             )
 
             if assistant_message is None:
-                raise ConversationNotFoundError(
-                    str(conversation.id),
-                )
+                raise ConversationNotFoundError()
 
             await self._session.commit()
 
@@ -158,9 +152,7 @@ class DatabaseChatService:
         )
 
         if conversation is None:
-            raise ConversationNotFoundError(
-                conversation_id,
-            )
+            raise ConversationNotFoundError()
 
         return conversation
 
@@ -187,9 +179,7 @@ class DatabaseChatService:
             )
 
             if not deleted:
-                raise ConversationNotFoundError(
-                    conversation_id,
-                )
+                raise ConversationNotFoundError()
 
             await self._session.commit()
 
@@ -219,9 +209,7 @@ class DatabaseChatService:
             ValueError,
             AttributeError,
         ) as exc:
-            raise ConversationNotFoundError(
-                str(conversation_id),
-            ) from exc
+            raise ConversationNotFoundError() from exc
 
     @staticmethod
     def _build_history(messages) -> list:
