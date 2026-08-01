@@ -1,7 +1,7 @@
 from datetime import datetime, timezone
 from uuid import UUID
 
-from sqlalchemy import delete, select
+from sqlalchemy import delete, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
@@ -149,3 +149,79 @@ class ConversationRepository:
         deleted_id = result.scalar_one_or_none()
 
         return deleted_id is not None
+
+    async def list_conversations(
+        self,
+        *,
+        user_id: UUID,
+        limit: int = 20,
+        offset: int = 0,
+    ) -> tuple[list[dict], int]:
+        """
+        Return active conversations owned by one user.
+
+        Conversations are ordered from most recently updated
+        to least recently updated.
+        """
+
+        message_count_subquery = (
+            select(
+                Message.conversation_id,
+                func.count(Message.id).label("message_count"),
+            )
+            .group_by(Message.conversation_id)
+            .subquery()
+        )
+
+        query = (
+            select(
+                Conversation,
+                func.coalesce(
+                    message_count_subquery.c.message_count,
+                    0,
+                ).label("message_count"),
+            )
+            .outerjoin(
+                message_count_subquery,
+                (
+                    message_count_subquery.c.conversation_id
+                    == Conversation.id
+                ),
+            )
+            .where(
+                Conversation.user_id == user_id,
+            )
+            .order_by(
+                Conversation.updated_at.desc(),
+                Conversation.created_at.desc(),
+            )
+            .limit(limit)
+            .offset(offset)
+        )
+
+        count_query = (
+            select(func.count(Conversation.id))
+            .where(
+                Conversation.user_id == user_id,
+            )
+        )
+
+        result = await self._session.execute(query)
+        total_result = await self._session.execute(count_query)
+
+        rows = result.all()
+        total = total_result.scalar_one()
+
+        conversations = [
+            {
+                "id": conversation.id,
+                "title": conversation.title,
+                "model_name": conversation.model_name,
+                "message_count": int(message_count),
+                "created_at": conversation.created_at,
+                "updated_at": conversation.updated_at,
+            }
+            for conversation, message_count in rows
+        ]
+
+        return conversations, total

@@ -1,11 +1,12 @@
 import logging
 from typing import Annotated
-
 from fastapi import (
     APIRouter,
     Depends,
+    Query,
     status,
 )
+
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.dependencies import CurrentUser
@@ -17,6 +18,7 @@ from app.schemas.chat import (
 from app.schemas.common import MessageResponse
 from app.schemas.conversation import (
     ConversationDetailResponse,
+    ConversationListResponse,
 )
 from app.services.database_chat_service import (
     DatabaseChatService,
@@ -79,6 +81,94 @@ async def send_chat_message(
         conversation_id=result["conversation_id"],
         reply=result["reply"],
     )
+
+
+@router.get(
+    "/conversations",
+    response_model=ConversationListResponse,
+    status_code=status.HTTP_200_OK,
+    summary="List user conversations",
+    description=(
+        "Returns conversations owned by the authenticated "
+        "user, ordered by most recent activity."
+    ),
+    responses={
+        401: {
+            "description": "Authentication is required.",
+        },
+        422: {
+            "description": "Invalid pagination values.",
+        },
+        500: {
+            "description": (
+                "The conversations could not be loaded."
+            ),
+        },
+    },
+)
+async def list_conversations(
+    session: DatabaseSession,
+    current_user: CurrentUser,
+    limit: Annotated[
+        int,
+        Query(
+            ge=1,
+            le=100,
+            description=(
+                "Maximum number of conversations to return."
+            ),
+        ),
+    ] = 20,
+    offset: Annotated[
+        int,
+        Query(
+            ge=0,
+            description=(
+                "Number of conversations to skip."
+            ),
+        ),
+    ] = 0,
+) -> ConversationListResponse:
+    service = DatabaseChatService(session)
+
+    result = await service.list_conversations(
+        user_id=current_user.id,
+        limit=limit,
+        offset=offset,
+    )
+
+    return ConversationListResponse(
+        conversations=result["conversations"],
+        total=result["total"],
+        limit=result["limit"],
+        offset=result["offset"],
+    )
+async def list_conversations(
+    service: DatabaseChatServiceDependency,
+    current_user: CurrentUser,
+    limit: Annotated[
+        int,
+        Query(
+            ge=1,
+            le=100,
+            description="Maximum conversations to return.",
+        ),
+    ] = 20,
+    offset: Annotated[
+        int,
+        Query(
+            ge=0,
+            description="Number of conversations to skip.",
+        ),
+    ] = 0,
+) -> ConversationListResponse:
+    result = await service.list_conversations(
+        user_id=current_user.id,
+        limit=limit,
+        offset=offset,
+    )
+
+    return ConversationListResponse(**result)
 
 
 @router.get(

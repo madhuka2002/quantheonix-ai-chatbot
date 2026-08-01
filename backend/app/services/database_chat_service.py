@@ -193,6 +193,32 @@ class DatabaseChatService:
             await self._session.rollback()
             raise ChatGenerationError() from exc
 
+    async def list_conversations(
+        self,
+        *,
+        user_id: UUID,
+        limit: int = 20,
+        offset: int = 0,
+    ) -> dict:
+        """
+        List conversations owned by the authenticated user.
+        """
+
+        conversations, total = (
+            await self._repository.list_conversations(
+                user_id=user_id,
+                limit=limit,
+                offset=offset,
+            )
+        )
+
+        return {
+            "conversations": conversations,
+            "total": total,
+            "limit": limit,
+            "offset": offset,
+        }
+
     @staticmethod
     def _parse_conversation_id(
         conversation_id: str,

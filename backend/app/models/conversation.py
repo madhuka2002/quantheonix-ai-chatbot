@@ -1,6 +1,6 @@
 from datetime import datetime
 from typing import TYPE_CHECKING
-from sqlalchemy.dialects.postgresql import UUID
+from uuid import UUID
 
 from sqlalchemy import (
     Boolean,
@@ -9,7 +9,7 @@ from sqlalchemy import (
     String,
     Text,
 )
-from sqlalchemy.dialects.postgresql import UUID
+from sqlalchemy.dialects.postgresql import UUID as PGUUID
 from sqlalchemy.orm import (
     Mapped,
     mapped_column,
@@ -21,6 +21,7 @@ from app.db.base import (
     TimestampMixin,
     UUIDPrimaryKeyMixin,
 )
+
 
 if TYPE_CHECKING:
     from app.models.message import Message
@@ -35,7 +36,7 @@ class Conversation(
     __tablename__ = "conversations"
 
     user_id: Mapped[UUID] = mapped_column(
-        UUID(as_uuid=True),
+        PGUUID(as_uuid=True),
         ForeignKey(
             "users.id",
             ondelete="CASCADE",

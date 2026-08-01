@@ -49,7 +49,7 @@ DatabaseSession = Annotated[
                 "already exists."
             ),
         },
-        status.HTTP_422_UNPROCESSABLE_ENTITY: {
+        status.HTTP_422_UNPROCESSABLE_CONTENT: {
             "description": "Request validation failed.",
         },
     },
@@ -79,7 +79,7 @@ async def register_user(
         status.HTTP_403_FORBIDDEN: {
             "description": "The account is inactive.",
         },
-        status.HTTP_422_UNPROCESSABLE_ENTITY: {
+        status.HTTP_422_UNPROCESSABLE_CONTENT: {
             "description": "Request validation failed.",
         },
     },
