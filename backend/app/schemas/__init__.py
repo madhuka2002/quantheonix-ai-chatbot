@@ -1,5 +1,7 @@
 from app.schemas.conversation import (
     ConversationDetailResponse,
+    ConversationListItem,
+    ConversationListResponse,
     ConversationMessageResponse,
 )
 from app.schemas.user import (

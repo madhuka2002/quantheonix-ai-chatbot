@@ -24,8 +24,8 @@ class DatabaseChatService:
     Generates AI replies while storing conversations and
     messages in PostgreSQL.
 
-    Each instance uses one SQLAlchemy AsyncSession supplied
-    by the caller.
+    All conversation operations are scoped to the authenticated
+    user's ID.
     """
 
     def __init__(self, session: AsyncSession) -> None:
@@ -36,11 +36,12 @@ class DatabaseChatService:
     async def send_message(
         self,
         *,
+        user_id: UUID,
         message: str,
         conversation_id: str | None,
     ) -> dict[str, str]:
         """
-        Create or continue a conversation.
+        Create or continue a user-owned conversation.
 
         The transaction stores both the user message and the
         assistant response. If generation or storage fails,
@@ -51,6 +52,7 @@ class DatabaseChatService:
             if conversation_id is None:
                 conversation = (
                     await self._repository.create_conversation(
+                        user_id=user_id,
                         model_name=settings.gemini_model,
                         title=self._create_title(message),
                     )
@@ -60,23 +62,22 @@ class DatabaseChatService:
 
             else:
                 conversation_uuid = self._parse_conversation_id(
-                    conversation_id
+                    conversation_id,
                 )
 
                 conversation = (
                     await self._repository
                     .get_conversation_with_messages(
-                        conversation_uuid
+                        conversation_id=conversation_uuid,
+                        user_id=user_id,
                     )
                 )
 
                 if conversation is None:
-                    raise ConversationNotFoundError(
-                        conversation_id
-                    )
+                    raise ConversationNotFoundError()
 
                 history = self._build_history(
-                    conversation.messages
+                    conversation.messages,
                 )
 
             chat = create_chat(
@@ -90,17 +91,27 @@ class DatabaseChatService:
                 message,
             )
 
-            await self._repository.add_message(
+            user_message = await self._repository.add_message(
                 conversation_id=conversation.id,
+                user_id=user_id,
                 role=MessageRole.USER,
                 content=message,
             )
 
-            await self._repository.add_message(
-                conversation_id=conversation.id,
-                role=MessageRole.ASSISTANT,
-                content=reply,
+            if user_message is None:
+                raise ConversationNotFoundError()
+
+            assistant_message = (
+                await self._repository.add_message(
+                    conversation_id=conversation.id,
+                    user_id=user_id,
+                    role=MessageRole.ASSISTANT,
+                    content=reply,
+                )
             )
+
+            if assistant_message is None:
+                raise ConversationNotFoundError()
 
             await self._session.commit()
 
@@ -115,63 +126,60 @@ class DatabaseChatService:
 
         except Exception as exc:
             await self._session.rollback()
-
-            # ChatGenerationError accepts no positional
-            # arguments in the current exception definition.
             raise ChatGenerationError() from exc
 
     async def get_conversation(
         self,
+        *,
         conversation_id: str,
+        user_id: UUID,
     ):
         """
-        Load an active conversation and all stored messages.
-
-        Messages are eagerly loaded by the repository, preventing
-        asynchronous lazy-loading errors.
+        Load one active conversation owned by the user,
+        including all stored messages.
         """
 
         conversation_uuid = self._parse_conversation_id(
-            conversation_id
+            conversation_id,
         )
 
         conversation = (
             await self._repository
             .get_conversation_with_messages(
-                conversation_uuid
+                conversation_id=conversation_uuid,
+                user_id=user_id,
             )
         )
 
         if conversation is None:
-            raise ConversationNotFoundError(
-                conversation_id
-            )
+            raise ConversationNotFoundError()
 
         return conversation
 
     async def delete_conversation(
         self,
+        *,
         conversation_id: str,
+        user_id: UUID,
     ) -> bool:
         """
-        Permanently delete a conversation and its messages.
+        Permanently delete a conversation owned by the user.
         """
 
         try:
             conversation_uuid = self._parse_conversation_id(
-                conversation_id
+                conversation_id,
             )
 
             deleted = (
                 await self._repository.delete_conversation(
-                    conversation_uuid
+                    conversation_id=conversation_uuid,
+                    user_id=user_id,
                 )
             )
 
             if not deleted:
-                raise ConversationNotFoundError(
-                    conversation_id
-                )
+                raise ConversationNotFoundError()
 
             await self._session.commit()
 
@@ -185,6 +193,32 @@ class DatabaseChatService:
             await self._session.rollback()
             raise ChatGenerationError() from exc
 
+    async def list_conversations(
+        self,
+        *,
+        user_id: UUID,
+        limit: int = 20,
+        offset: int = 0,
+    ) -> dict:
+        """
+        List conversations owned by the authenticated user.
+        """
+
+        conversations, total = (
+            await self._repository.list_conversations(
+                user_id=user_id,
+                limit=limit,
+                offset=offset,
+            )
+        )
+
+        return {
+            "conversations": conversations,
+            "total": total,
+            "limit": limit,
+            "offset": offset,
+        }
+
     @staticmethod
     def _parse_conversation_id(
         conversation_id: str,
@@ -196,18 +230,17 @@ class DatabaseChatService:
         try:
             return UUID(conversation_id)
 
-        except (TypeError, ValueError, AttributeError) as exc:
-            raise ConversationNotFoundError(
-                str(conversation_id)
-            ) from exc
+        except (
+            TypeError,
+            ValueError,
+            AttributeError,
+        ) as exc:
+            raise ConversationNotFoundError() from exc
 
     @staticmethod
     def _build_history(messages) -> list:
         """
         Convert loaded database messages into Gemini history.
-
-        The relationship must already have been loaded using
-        selectinload by the repository.
         """
 
         history = []
@@ -223,7 +256,7 @@ class DatabaseChatService:
                 create_history_content(
                     role=stored_message.role.value,
                     content=stored_message.content,
-                )
+                ),
             )
 
         return history
@@ -235,7 +268,7 @@ class DatabaseChatService:
         """
 
         normalised_message = " ".join(
-            message.strip().split()
+            message.strip().split(),
         )
 
         if len(normalised_message) <= 80:

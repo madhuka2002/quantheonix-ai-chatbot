@@ -1,7 +1,7 @@
 from datetime import datetime, timezone
 from uuid import UUID
 
-from sqlalchemy import delete, select
+from sqlalchemy import delete, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
@@ -13,6 +13,9 @@ class ConversationRepository:
     """
     Handles database operations for conversations and messages.
 
+    All conversation operations are scoped to a user ID so one
+    authenticated user cannot access another user's conversations.
+
     This repository does not commit automatically. The calling service
     controls the transaction by calling session.commit() or rollback().
     """
@@ -23,11 +26,13 @@ class ConversationRepository:
     async def create_conversation(
         self,
         *,
+        user_id: UUID,
         model_name: str,
         title: str | None = None,
         system_prompt: str | None = None,
     ) -> Conversation:
         conversation = Conversation(
+            user_id=user_id,
             title=title,
             system_prompt=system_prompt,
             model_name=model_name,
@@ -42,10 +47,13 @@ class ConversationRepository:
 
     async def get_conversation(
         self,
+        *,
         conversation_id: UUID,
+        user_id: UUID,
     ) -> Conversation | None:
         statement = select(Conversation).where(
             Conversation.id == conversation_id,
+            Conversation.user_id == user_id,
             Conversation.is_active.is_(True),
         )
 
@@ -55,15 +63,18 @@ class ConversationRepository:
 
     async def get_conversation_with_messages(
         self,
+        *,
         conversation_id: UUID,
+        user_id: UUID,
     ) -> Conversation | None:
         statement = (
             select(Conversation)
             .options(
-                selectinload(Conversation.messages)
+                selectinload(Conversation.messages),
             )
             .where(
                 Conversation.id == conversation_id,
+                Conversation.user_id == user_id,
                 Conversation.is_active.is_(True),
             )
         )
@@ -76,11 +87,31 @@ class ConversationRepository:
         self,
         *,
         conversation_id: UUID,
+        user_id: UUID,
         role: MessageRole,
         content: str,
         token_count: int | None = None,
         message_metadata: dict | None = None,
-    ) -> Message:
+    ) -> Message | None:
+        conversation_statement = select(
+            Conversation,
+        ).where(
+            Conversation.id == conversation_id,
+            Conversation.user_id == user_id,
+            Conversation.is_active.is_(True),
+        )
+
+        conversation_result = await self._session.execute(
+            conversation_statement,
+        )
+
+        conversation = (
+            conversation_result.scalar_one_or_none()
+        )
+
+        if conversation is None:
+            return None
+
         message = Message(
             conversation_id=conversation_id,
             role=role,
@@ -91,24 +122,9 @@ class ConversationRepository:
 
         self._session.add(message)
 
-        conversation_statement = select(
-            Conversation
-        ).where(
-            Conversation.id == conversation_id
+        conversation.last_message_at = datetime.now(
+            timezone.utc,
         )
-
-        conversation_result = await self._session.execute(
-            conversation_statement
-        )
-
-        conversation = (
-            conversation_result.scalar_one_or_none()
-        )
-
-        if conversation is not None:
-            conversation.last_message_at = (
-                datetime.now(timezone.utc)
-            )
 
         await self._session.flush()
 
@@ -116,12 +132,15 @@ class ConversationRepository:
 
     async def delete_conversation(
         self,
+        *,
         conversation_id: UUID,
+        user_id: UUID,
     ) -> bool:
         statement = (
             delete(Conversation)
             .where(
-                Conversation.id == conversation_id
+                Conversation.id == conversation_id,
+                Conversation.user_id == user_id,
             )
             .returning(Conversation.id)
         )
@@ -130,3 +149,79 @@ class ConversationRepository:
         deleted_id = result.scalar_one_or_none()
 
         return deleted_id is not None
+
+    async def list_conversations(
+        self,
+        *,
+        user_id: UUID,
+        limit: int = 20,
+        offset: int = 0,
+    ) -> tuple[list[dict], int]:
+        """
+        Return active conversations owned by one user.
+
+        Conversations are ordered from most recently updated
+        to least recently updated.
+        """
+
+        message_count_subquery = (
+            select(
+                Message.conversation_id,
+                func.count(Message.id).label("message_count"),
+            )
+            .group_by(Message.conversation_id)
+            .subquery()
+        )
+
+        query = (
+            select(
+                Conversation,
+                func.coalesce(
+                    message_count_subquery.c.message_count,
+                    0,
+                ).label("message_count"),
+            )
+            .outerjoin(
+                message_count_subquery,
+                (
+                    message_count_subquery.c.conversation_id
+                    == Conversation.id
+                ),
+            )
+            .where(
+                Conversation.user_id == user_id,
+            )
+            .order_by(
+                Conversation.updated_at.desc(),
+                Conversation.created_at.desc(),
+            )
+            .limit(limit)
+            .offset(offset)
+        )
+
+        count_query = (
+            select(func.count(Conversation.id))
+            .where(
+                Conversation.user_id == user_id,
+            )
+        )
+
+        result = await self._session.execute(query)
+        total_result = await self._session.execute(count_query)
+
+        rows = result.all()
+        total = total_result.scalar_one()
+
+        conversations = [
+            {
+                "id": conversation.id,
+                "title": conversation.title,
+                "model_name": conversation.model_name,
+                "message_count": int(message_count),
+                "created_at": conversation.created_at,
+                "updated_at": conversation.updated_at,
+            }
+            for conversation, message_count in rows
+        ]
+
+        return conversations, total

@@ -1,3 +1,8 @@
+import {
+  clearAuthentication,
+  getAccessToken,
+} from "./authStorage";
+
 const API_BASE_URL =
   import.meta.env.VITE_API_BASE_URL ||
   "http://127.0.0.1:8000";
@@ -53,6 +58,29 @@ function createApiError(
 }
 
 
+function createAuthenticatedHeaders(
+  additionalHeaders = {},
+) {
+  const token = getAccessToken();
+
+  if (!token) {
+    const error = new Error(
+      "You must log in before using the chatbot.",
+    );
+
+    error.status = 401;
+
+    throw error;
+  }
+
+  return {
+    Accept: "application/json",
+    Authorization: `Bearer ${token}`,
+    ...additionalHeaders,
+  };
+}
+
+
 export async function sendChatMessage(
   message,
   conversationId = null,
@@ -64,10 +92,10 @@ export async function sendChatMessage(
       `${API_V1_URL}/chat`,
       {
         method: "POST",
-        headers: {
+        headers: createAuthenticatedHeaders({
           "Content-Type": "application/json",
           Accept: "application/json",
-        },
+        }),
         body: JSON.stringify({
           message,
           conversation_id: conversationId,
@@ -81,6 +109,10 @@ export async function sendChatMessage(
   }
 
   const data = await parseResponse(response);
+
+  if (response.status === 401) {
+    clearAuthentication();
+  }
 
   if (!response.ok) {
     if (response.status === 429) {
@@ -124,9 +156,9 @@ export async function getConversation(
       )}`,
       {
         method: "GET",
-        headers: {
+        headers: createAuthenticatedHeaders({
           Accept: "application/json",
-        },
+        }),
       },
     );
   } catch {
@@ -136,6 +168,10 @@ export async function getConversation(
   }
 
   const data = await parseResponse(response);
+
+  if (response.status === 401) {
+    clearAuthentication();
+  }
 
   if (!response.ok) {
     const errorMessage =
@@ -170,9 +206,9 @@ export async function resetConversation(
       )}`,
       {
         method: "DELETE",
-        headers: {
+        headers: createAuthenticatedHeaders({
           Accept: "application/json",
-        },
+        }),
       },
     );
   } catch {
@@ -182,6 +218,10 @@ export async function resetConversation(
   }
 
   const data = await parseResponse(response);
+
+  if (response.status === 401) {
+    clearAuthentication();
+  }
 
   if (!response.ok) {
     const errorMessage =
