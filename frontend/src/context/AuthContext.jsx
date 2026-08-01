@@ -1,5 +1,4 @@
 import {
-  createContext,
   useCallback,
   useEffect,
   useMemo,
@@ -18,8 +17,9 @@ import {
   getStoredUser,
 } from "../services/authStorage";
 
-
-export const AuthContext = createContext(null);
+import {
+  AuthContext,
+} from "./auth-context";
 
 
 export function AuthProvider({ children }) {
@@ -28,43 +28,54 @@ export function AuthProvider({ children }) {
   );
 
   const [isLoading, setIsLoading] =
-    useState(Boolean(getAccessToken()));
+    useState(
+      () => Boolean(getAccessToken()),
+    );
 
   const [authError, setAuthError] =
     useState("");
 
-  const restoreAuthentication =
-    useCallback(async () => {
-      const token = getAccessToken();
 
-      if (!token) {
-        setUser(null);
-        setIsLoading(false);
-        return;
-      }
+  useEffect(() => {
+    const token = getAccessToken();
 
+    if (!token) {
+      return undefined;
+    }
+
+    let isCancelled = false;
+
+    async function restoreAuthentication() {
       try {
         const currentUser =
           await getCurrentUser();
 
-        setUser(currentUser);
+        if (!isCancelled) {
+          setUser(currentUser);
+        }
       } catch (error) {
-        setUser(null);
+        if (!isCancelled) {
+          setUser(null);
 
-        setAuthError(
-          error instanceof Error
-            ? error.message
-            : "Your login session could not be restored.",
-        );
+          setAuthError(
+            error instanceof Error
+              ? error.message
+              : "Your login session could not be restored.",
+          );
+        }
       } finally {
-        setIsLoading(false);
+        if (!isCancelled) {
+          setIsLoading(false);
+        }
       }
-    }, []);
+    }
 
+    void restoreAuthentication();
 
-  useEffect(() => {
-    restoreAuthentication();
-  }, [restoreAuthentication]);
+    return () => {
+      isCancelled = true;
+    };
+  }, []);
 
 
   const login = useCallback(

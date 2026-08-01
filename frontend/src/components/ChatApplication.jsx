@@ -2,14 +2,23 @@ import "../App.css";
 
 import ChatHeader from "./ChatHeader";
 import ChatInput from "./ChatInput";
+import ConversationSidebar from "./ConversationSidebar";
 import ErrorBanner from "./ErrorBanner";
 import MessageList from "./MessageList";
 
+import { useAuth } from "../hooks/useAuth";
 import { useChat } from "../hooks/useChat";
-
+import {
+  useConversationHistory,
+} from "../hooks/useConversationHistory";
 
 
 function ChatApplication() {
+  const {
+    user,
+    logout,
+  } = useAuth();
+
   const {
     input,
     messages,
@@ -25,17 +34,82 @@ function ChatApplication() {
     handleSubmit,
     handleRetry,
     handleNewChat,
+    openConversation,
   } = useChat();
+
+  const {
+    conversations,
+    isLoadingHistory,
+    historyError,
+    loadConversations,
+    removeConversation,
+  } = useConversationHistory();
+
+
+  async function handleDeleteFromSidebar(
+    selectedConversationId,
+  ) {
+    const shouldDelete = window.confirm(
+      "Delete this conversation permanently?",
+    );
+
+    if (!shouldDelete) {
+      return;
+    }
+
+    try {
+      await removeConversation(
+        selectedConversationId,
+      );
+
+      if (
+        selectedConversationId ===
+        conversationId
+      ) {
+        await handleNewChat();
+      }
+    } catch (requestError) {
+      console.error(
+        "Conversation deletion failed:",
+        requestError,
+      );
+    }
+  }
+
+
+  async function handleCreateNewChat() {
+    await handleNewChat();
+    await loadConversations();
+  }
 
 
   return (
-    <main className="app">
-      <section className="chat">
+    <div className="chat-shell">
+      <ConversationSidebar
+        conversations={conversations}
+        activeConversationId={conversationId}
+        isLoading={isLoadingHistory}
+        error={historyError}
+        user={user}
+        onSelectConversation={openConversation}
+        onDeleteConversation={
+          handleDeleteFromSidebar
+        }
+        onNewChat={handleCreateNewChat}
+        onRefresh={loadConversations}
+        onLogout={logout}
+      />
+
+      <div className="chat-main">
         <ChatHeader
-          conversationId={conversationId}
-          isLoading={isLoading}
+          onNewChat={handleCreateNewChat}
           isResetting={isResetting}
-          onNewChat={handleNewChat}
+        />
+
+        <ErrorBanner
+          error={error}
+          failedMessage={failedMessage}
+          onRetry={handleRetry}
         />
 
         <MessageList
@@ -44,24 +118,16 @@ function ChatApplication() {
           messagesEndRef={messagesEndRef}
         />
 
-        <ErrorBanner
-          error={error}
-          failedMessage={failedMessage}
-          isLoading={isLoading}
-          onRetry={handleRetry}
-        />
-
         <ChatInput
           input={input}
           isLoading={isLoading}
-          isResetting={isResetting}
           textareaRef={textareaRef}
           onInputChange={handleInputChange}
           onKeyDown={handleKeyDown}
           onSubmit={handleSubmit}
         />
-      </section>
-    </main>
+      </div>
+    </div>
   );
 }
 

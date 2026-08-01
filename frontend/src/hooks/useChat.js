@@ -139,6 +139,51 @@ export function useChat() {
   );
 
 
+  async function openConversation(
+    selectedConversationId,
+  ) {
+    if (
+      !selectedConversationId ||
+      isBusy
+    ) {
+      return;
+    }
+
+    setError("");
+    setFailedMessage(null);
+    setIsRestoring(true);
+
+    try {
+      const conversation =
+        await getConversation(
+          selectedConversationId,
+        );
+
+      const restoredMessages =
+        convertStoredMessages(
+          conversation.messages,
+        );
+
+      setConversationId(
+        selectedConversationId,
+      );
+
+      setMessages(
+        restoredMessages,
+      );
+    } catch (requestError) {
+      setError(
+        requestError instanceof Error
+          ? requestError.message
+          : "The conversation could not be loaded.",
+      );
+    } finally {
+      setIsRestoring(false);
+      focusTextarea();
+    }
+  }
+
+
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({
       behavior: "smooth",
@@ -391,5 +436,6 @@ export function useChat() {
     handleSubmit,
     handleRetry,
     handleNewChat,
+    openConversation,
   };
 }

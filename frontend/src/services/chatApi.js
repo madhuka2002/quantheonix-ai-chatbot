@@ -238,3 +238,45 @@ export async function resetConversation(
 
   return data;
 }
+
+export async function listConversations({
+  limit = 50,
+  offset = 0,
+} = {}) {
+  let response;
+
+  try {
+    response = await fetch(
+      `${API_V1_URL}/conversations?limit=${limit}&offset=${offset}`,
+      {
+        method: "GET",
+        headers: createAuthenticatedHeaders(),
+      },
+    );
+  } catch {
+    throw new Error(
+      "Unable to connect to the chatbot server.",
+    );
+  }
+
+  const data = await parseResponse(response);
+
+  if (response.status === 401) {
+    clearAuthentication();
+  }
+
+  if (!response.ok) {
+    const errorMessage =
+      extractApiErrorMessage(
+        data,
+        "The conversations could not be loaded.",
+      );
+
+    throw createApiError(
+      errorMessage,
+      response.status,
+    );
+  }
+
+  return data;
+}
