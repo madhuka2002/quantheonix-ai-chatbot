@@ -1,68 +1,83 @@
-import "./App.css";
+import {
+  useState,
+} from "react";
 
-import ChatHeader from "./components/ChatHeader";
-import ChatInput from "./components/ChatInput";
-import ErrorBanner from "./components/ErrorBanner";
-import MessageList from "./components/MessageList";
+import {
+  AuthProvider,
+} from "./context/AuthContext";
 
-import { useChat } from "./hooks/useChat";
+import {
+  useAuth,
+} from "./hooks/useAuth";
+
+import ChatApplication
+  from "./components/ChatApplication";
+
+import LoginPage
+  from "./pages/LoginPage";
+
+import RegisterPage
+  from "./pages/RegisterPage";
+
+import "./styles/auth.css";
 
 
-function App() {
+function ApplicationContent() {
   const {
-    input,
-    messages,
-    conversationId,
+    isAuthenticated,
     isLoading,
-    isResetting,
-    error,
-    failedMessage,
-    messagesEndRef,
-    textareaRef,
-    handleInputChange,
-    handleKeyDown,
-    handleSubmit,
-    handleRetry,
-    handleNewChat,
-  } = useChat();
+  } = useAuth();
+
+  const [authPage, setAuthPage] =
+    useState("login");
 
 
-  return (
-    <main className="app">
-      <section className="chat">
-        <ChatHeader
-          conversationId={conversationId}
-          isLoading={isLoading}
-          isResetting={isResetting}
-          onNewChat={handleNewChat}
+  if (isLoading) {
+    return (
+      <main className="auth-page">
+        <section className="auth-card auth-loading">
+          <div className="auth-logo">
+            QX
+          </div>
+
+          <p>
+            Checking your session...
+          </p>
+        </section>
+      </main>
+    );
+  }
+
+
+  if (!isAuthenticated) {
+    if (authPage === "register") {
+      return (
+        <RegisterPage
+          onShowLogin={() =>
+            setAuthPage("login")
+          }
         />
+      );
+    }
 
-        <MessageList
-          messages={messages}
-          isLoading={isLoading}
-          messagesEndRef={messagesEndRef}
-        />
+    return (
+      <LoginPage
+        onShowRegister={() =>
+          setAuthPage("register")
+        }
+      />
+    );
+  }
 
-        <ErrorBanner
-          error={error}
-          failedMessage={failedMessage}
-          isLoading={isLoading}
-          onRetry={handleRetry}
-        />
 
-        <ChatInput
-          input={input}
-          isLoading={isLoading}
-          isResetting={isResetting}
-          textareaRef={textareaRef}
-          onInputChange={handleInputChange}
-          onKeyDown={handleKeyDown}
-          onSubmit={handleSubmit}
-        />
-      </section>
-    </main>
-  );
+  return <ChatApplication />;
 }
 
 
-export default App;
+export default function App() {
+  return (
+    <AuthProvider>
+      <ApplicationContent />
+    </AuthProvider>
+  );
+}
