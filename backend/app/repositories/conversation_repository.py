@@ -83,6 +83,27 @@ class ConversationRepository:
 
         return result.scalar_one_or_none()
 
+    async def rename_conversation(
+        self,
+        *,
+        conversation_id: UUID,
+        user_id: UUID,
+        title: str,
+    ) -> Conversation | None:
+        conversation = await self.get_conversation(
+            conversation_id=conversation_id,
+            user_id=user_id,
+        )
+
+        if conversation is None:
+            return None
+
+        conversation.title = title
+
+        await self._session.flush()
+
+        return conversation
+
     async def add_message(
         self,
         *,
@@ -156,6 +177,7 @@ class ConversationRepository:
         user_id: UUID,
         limit: int = 20,
         offset: int = 0,
+        search: str | None = None,
     ) -> tuple[list[dict], int]:
         """
         Return active conversations owned by one user.
@@ -164,12 +186,34 @@ class ConversationRepository:
         to least recently updated.
         """
 
+        filters = [
+            Conversation.user_id == user_id,
+            Conversation.is_active.is_(True),
+        ]
+
+        cleaned_search = (
+            search.strip()
+            if isinstance(search, str)
+            else ""
+        )
+
+        if cleaned_search:
+            filters.append(
+                Conversation.title.ilike(
+                    f"%{cleaned_search}%"
+                )
+            )
+
         message_count_subquery = (
             select(
                 Message.conversation_id,
-                func.count(Message.id).label("message_count"),
+                func.count(Message.id).label(
+                    "message_count"
+                ),
             )
-            .group_by(Message.conversation_id)
+            .group_by(
+                Message.conversation_id
+            )
             .subquery()
         )
 
@@ -188,9 +232,7 @@ class ConversationRepository:
                     == Conversation.id
                 ),
             )
-            .where(
-                Conversation.user_id == user_id,
-            )
+            .where(*filters)
             .order_by(
                 Conversation.updated_at.desc(),
                 Conversation.created_at.desc(),
@@ -200,14 +242,21 @@ class ConversationRepository:
         )
 
         count_query = (
-            select(func.count(Conversation.id))
-            .where(
-                Conversation.user_id == user_id,
+            select(
+                func.count(
+                    Conversation.id
+                )
             )
+            .where(*filters)
         )
 
-        result = await self._session.execute(query)
-        total_result = await self._session.execute(count_query)
+        result = await self._session.execute(
+            query
+        )
+
+        total_result = await self._session.execute(
+            count_query
+        )
 
         rows = result.all()
         total = total_result.scalar_one()
@@ -216,10 +265,18 @@ class ConversationRepository:
             {
                 "id": conversation.id,
                 "title": conversation.title,
-                "model_name": conversation.model_name,
-                "message_count": int(message_count),
-                "created_at": conversation.created_at,
-                "updated_at": conversation.updated_at,
+                "model_name": (
+                    conversation.model_name
+                ),
+                "message_count": int(
+                    message_count
+                ),
+                "created_at": (
+                    conversation.created_at
+                ),
+                "updated_at": (
+                    conversation.updated_at
+                ),
             }
             for conversation, message_count in rows
         ]

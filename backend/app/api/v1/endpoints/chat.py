@@ -19,6 +19,8 @@ from app.schemas.common import MessageResponse
 from app.schemas.conversation import (
     ConversationDetailResponse,
     ConversationListResponse,
+    ConversationRenameRequest,
+    ConversationRenameResponse,
 )
 from app.services.database_chat_service import (
     DatabaseChatService,
@@ -207,6 +209,43 @@ async def get_conversation(
     )
 
     return ConversationDetailResponse.model_validate(
+        conversation,
+    )
+
+
+@router.patch(
+    "/conversations/{conversation_id}",
+    response_model=ConversationRenameResponse,
+    status_code=status.HTTP_200_OK,
+    summary="Rename a conversation",
+    description=(
+        "Changes the title of a conversation owned by "
+        "the authenticated user."
+    ),
+    responses={
+        404: {
+            "description": "Conversation not found.",
+        },
+        422: {
+            "description": "Invalid conversation title.",
+        },
+    },
+)
+async def rename_conversation(
+    conversation_id: str,
+    request: ConversationRenameRequest,
+    session: DatabaseSession,
+    current_user: CurrentUser,
+) -> ConversationRenameResponse:
+    service = DatabaseChatService(session)
+
+    conversation = await service.rename_conversation(
+        conversation_id=conversation_id,
+        user_id=current_user.id,
+        title=request.title,
+    )
+
+    return ConversationRenameResponse.model_validate(
         conversation,
     )
 

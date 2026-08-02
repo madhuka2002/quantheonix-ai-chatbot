@@ -3,6 +3,8 @@ from app.schemas.conversation import (
     ConversationListItem,
     ConversationListResponse,
     ConversationMessageResponse,
+    ConversationRenameRequest,
+    ConversationRenameResponse,
 )
 from app.schemas.user import (
     UserCreate,
@@ -24,4 +26,5 @@ __all__ = [
     "UserResponse",
     "LoginRequest",
     "TokenResponse",
+    "ConversationRenameRequest",
 ]
