@@ -6,6 +6,7 @@ from fastapi import (
     Query,
     status,
 )
+from fastapi.responses import StreamingResponse
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -82,6 +83,58 @@ async def send_chat_message(
     return ChatResponse(
         conversation_id=result["conversation_id"],
         reply=result["reply"],
+    )
+
+
+@router.post(
+    "/chat/stream",
+    response_class=StreamingResponse,
+    status_code=status.HTTP_200_OK,
+    summary="Stream a chat response",
+    description=(
+        "Streams the assistant response as newline-delimited "
+        "JSON events and stores the completed conversation."
+    ),
+    responses={
+        401: {
+            "description": "Authentication required.",
+        },
+        404: {
+            "description": "Conversation not found.",
+        },
+        422: {
+            "description": "Request validation failed.",
+        },
+    },
+)
+async def stream_chat_message(
+    request: ChatRequest,
+    session: DatabaseSession,
+    current_user: CurrentUser,
+) -> StreamingResponse:
+    service = DatabaseChatService(
+        session,
+    )
+
+    event_stream = service.stream_message(
+        user_id=current_user.id,
+        message=request.message,
+        conversation_id=(
+            request.conversation_id
+        ),
+    )
+
+    return StreamingResponse(
+        event_stream,
+        media_type=(
+            "application/x-ndjson"
+        ),
+        headers={
+            "Cache-Control": "no-cache",
+            "X-Content-Type-Options": (
+                "nosniff"
+            ),
+        },
     )
 
 

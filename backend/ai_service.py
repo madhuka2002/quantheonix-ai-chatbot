@@ -10,6 +10,7 @@ from config import (
     validate_config,
 )
 from prompts import SYSTEM_INSTRUCTION
+from collections.abc import AsyncIterator
 
 
 def create_client() -> genai.Client:
@@ -95,3 +96,40 @@ def generate_reply(
         )
 
     return response.text
+
+
+async def stream_reply(
+    client,
+    *,
+    model_name: str,
+    history: list,
+    message: str,
+) -> AsyncIterator[str]:
+    """
+    Stream Gemini text chunks for one user message.
+    """
+
+    contents = [
+        *history,
+        create_history_content(
+            role="user",
+            content=message,
+        ),
+    ]
+
+    response_stream = (
+        await client.aio.models.generate_content_stream(
+            model=model_name,
+            contents=contents,
+        )
+    )
+
+    async for chunk in response_stream:
+        chunk_text = getattr(
+            chunk,
+            "text",
+            None,
+        )
+
+        if chunk_text:
+            yield chunk_text
