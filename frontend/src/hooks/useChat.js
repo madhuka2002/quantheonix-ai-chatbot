@@ -137,9 +137,6 @@ export function useChat() {
   const textareaRef =
     useRef(null);
 
-  const hasRestoredConversationRef =
-    useRef(false);
-
 
   const safeMessages = useMemo(
     () => {
@@ -247,15 +244,6 @@ export function useChat() {
 
 
   useEffect(() => {
-    if (
-      hasRestoredConversationRef.current
-    ) {
-      return undefined;
-    }
-
-    hasRestoredConversationRef.current =
-      true;
-
     if (!conversationId) {
       return undefined;
     }

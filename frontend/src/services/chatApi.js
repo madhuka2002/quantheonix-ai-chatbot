@@ -50,9 +50,11 @@ function extractApiErrorMessage(
 function createApiError(
   message,
   status,
+  code = null,
 ) {
   const error = new Error(message);
   error.status = status;
+  error.code = code;
 
   return error;
 }
@@ -247,7 +249,9 @@ export async function renameConversation(
 
   try {
     response = await fetch(
-      `${API_V1_URL}/conversations/${conversationId}`,
+      `${API_V1_URL}/conversations/${encodeURIComponent(
+        conversationId,
+      )}`,
       {
         method: "PATCH",
         headers: createAuthenticatedHeaders({

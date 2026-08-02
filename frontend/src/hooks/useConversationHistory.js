@@ -1,6 +1,7 @@
 import {
   useCallback,
   useEffect,
+  useRef,
   useState,
 } from "react";
 
@@ -19,8 +20,10 @@ function normaliseConversations(data) {
 
 
 export function useConversationHistory() {
-  const [conversations, setConversations] =
-    useState([]);
+  const [
+    conversations,
+    setConversations,
+  ] = useState([]);
 
   const [search, setSearch] =
     useState("");
@@ -30,21 +33,40 @@ export function useConversationHistory() {
     setIsLoadingHistory,
   ] = useState(true);
 
-  const [historyError, setHistoryError] =
-    useState("");
+  const [
+    historyError,
+    setHistoryError,
+  ] = useState("");
+
+  const latestRequestIdRef =
+    useRef(0);
 
 
   const loadConversations = useCallback(
     async (searchValue = "") => {
+      const requestId =
+        latestRequestIdRef.current + 1;
+
+      latestRequestIdRef.current =
+        requestId;
+
       setIsLoadingHistory(true);
       setHistoryError("");
 
       try {
-        const data = await listConversations({
-          limit: 50,
-          offset: 0,
-          search: searchValue,
-        });
+        const data =
+          await listConversations({
+            limit: 50,
+            offset: 0,
+            search: searchValue,
+          });
+
+        if (
+          requestId !==
+          latestRequestIdRef.current
+        ) {
+          return null;
+        }
 
         setConversations(
           normaliseConversations(data),
@@ -52,6 +74,13 @@ export function useConversationHistory() {
 
         return data;
       } catch (error) {
+        if (
+          requestId !==
+          latestRequestIdRef.current
+        ) {
+          return null;
+        }
+
         setHistoryError(
           error instanceof Error
             ? error.message
@@ -60,7 +89,12 @@ export function useConversationHistory() {
 
         return null;
       } finally {
-        setIsLoadingHistory(false);
+        if (
+          requestId ===
+          latestRequestIdRef.current
+        ) {
+          setIsLoadingHistory(false);
+        }
       }
     },
     [],
@@ -81,7 +115,8 @@ export function useConversationHistory() {
         (currentConversations) =>
           currentConversations.filter(
             (conversation) =>
-              conversation.id !== conversationId,
+              conversation.id !==
+              conversationId,
           ),
       );
 
@@ -135,42 +170,18 @@ export function useConversationHistory() {
 
 
   useEffect(() => {
-    let isCancelled = false;
-
-    async function loadInitialHistory() {
-      try {
-        const data = await listConversations({
-          limit: 50,
-          offset: 0,
-          search: "",
-        });
-
-        if (!isCancelled) {
-          setConversations(
-            normaliseConversations(data),
-          );
-        }
-      } catch (error) {
-        if (!isCancelled) {
-          setHistoryError(
-            error instanceof Error
-              ? error.message
-              : "Conversation history could not be loaded.",
-          );
-        }
-      } finally {
-        if (!isCancelled) {
-          setIsLoadingHistory(false);
-        }
-      }
-    }
-
-    void loadInitialHistory();
+    const timeoutId =
+      window.setTimeout(() => {
+        void loadConversations(search);
+      }, 300);
 
     return () => {
-      isCancelled = true;
+      window.clearTimeout(timeoutId);
     };
-  }, []);
+  }, [
+    search,
+    loadConversations,
+  ]);
 
 
   return {

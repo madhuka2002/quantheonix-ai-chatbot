@@ -179,13 +179,6 @@ class ConversationRepository:
         offset: int = 0,
         search: str | None = None,
     ) -> tuple[list[dict], int]:
-        """
-        Return active conversations owned by one user.
-
-        Conversations are ordered from most recently updated
-        to least recently updated.
-        """
-
         filters = [
             Conversation.user_id == user_id,
             Conversation.is_active.is_(True),
@@ -211,9 +204,7 @@ class ConversationRepository:
                     "message_count"
                 ),
             )
-            .group_by(
-                Message.conversation_id
-            )
+            .group_by(Message.conversation_id)
             .subquery()
         )
 
@@ -242,18 +233,11 @@ class ConversationRepository:
         )
 
         count_query = (
-            select(
-                func.count(
-                    Conversation.id
-                )
-            )
+            select(func.count(Conversation.id))
             .where(*filters)
         )
 
-        result = await self._session.execute(
-            query
-        )
-
+        result = await self._session.execute(query)
         total_result = await self._session.execute(
             count_query
         )
@@ -265,18 +249,12 @@ class ConversationRepository:
             {
                 "id": conversation.id,
                 "title": conversation.title,
-                "model_name": (
-                    conversation.model_name
-                ),
+                "model_name": conversation.model_name,
                 "message_count": int(
                     message_count
                 ),
-                "created_at": (
-                    conversation.created_at
-                ),
-                "updated_at": (
-                    conversation.updated_at
-                ),
+                "created_at": conversation.created_at,
+                "updated_at": conversation.updated_at,
             }
             for conversation, message_count in rows
         ]

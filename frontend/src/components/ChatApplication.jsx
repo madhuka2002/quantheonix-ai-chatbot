@@ -1,7 +1,5 @@
 import "../App.css";
-import {
-  useEffect,
-} from "react";
+// import { useEffect } from "react";
 
 import ChatHeader from "./ChatHeader";
 import ChatInput from "./ChatInput";
@@ -52,21 +50,21 @@ function ChatApplication() {
   } = useConversationHistory();
 
 
-  useEffect(() => {
-    const timeoutId = window.setTimeout(
-      () => {
-        void loadConversations(search);
-      },
-      300,
-    );
+  // useEffect(() => {
+  //   const timeoutId = window.setTimeout(
+  //     () => {
+  //       void loadConversations(search);
+  //     },
+  //     300,
+  //   );
 
-    return () => {
-      window.clearTimeout(timeoutId);
-    };
-  }, [
-    search,
-    loadConversations,
-  ]);
+  //   return () => {
+  //     window.clearTimeout(timeoutId);
+  //   };
+  // }, [
+  //   search,
+  //   loadConversations,
+  // ]);
 
 
   async function handleDeleteFromSidebar(
