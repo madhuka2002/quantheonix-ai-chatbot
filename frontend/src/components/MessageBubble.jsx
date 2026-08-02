@@ -3,7 +3,16 @@ import MarkdownMessage from "./MarkdownMessage";
 
 
 function MessageBubble({ message }) {
+  if (!message) {
+    return null;
+  }
+
   const isUser = message.role === "user";
+
+  const content =
+    typeof message.content === "string"
+      ? message.content
+      : "";
 
   return (
     <article
@@ -15,22 +24,24 @@ function MessageBubble({ message }) {
         </span>
 
         <CopyButton
-          text={message.content}
+          text={content}
           defaultLabel="Copy"
           copiedLabel="Copied"
           className="message__copy-button"
         />
       </div>
 
-      {isUser ? (
-        <p className="message__plain-text">
-          {message.content}
-        </p>
-      ) : (
-        <MarkdownMessage
-          content={message.content}
-        />
-      )}
+      <div className="message__content">
+        {isUser ? (
+          <p className="message__plain-text">
+            {content}
+          </p>
+        ) : (
+          <MarkdownMessage
+            content={content}
+          />
+        )}
+      </div>
     </article>
   );
 }

@@ -7,13 +7,18 @@ function MessageList({
   isLoading,
   messagesEndRef,
 }) {
+  const safeMessages = Array.isArray(messages)
+    ? messages.filter(Boolean)
+    : [];
+
   return (
     <div
       className="chat__messages"
       aria-live="polite"
       aria-label="Chat messages"
+      aria-busy={isLoading}
     >
-      {messages.map((message) => (
+      {safeMessages.map((message) => (
         <MessageBubble
           key={message.id}
           message={message}
@@ -22,9 +27,13 @@ function MessageList({
 
       {isLoading && <TypingIndicator />}
 
-      <div ref={messagesEndRef} />
+      <div
+        ref={messagesEndRef}
+        aria-hidden="true"
+      />
     </div>
   );
 }
+
 
 export default MessageList;
