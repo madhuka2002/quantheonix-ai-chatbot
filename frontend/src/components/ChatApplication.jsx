@@ -68,6 +68,8 @@ function ChatApplication() {
       ) {
         await handleNewChat();
       }
+
+      await loadConversations();
     } catch (requestError) {
       console.error(
         "Conversation deletion failed:",
@@ -78,8 +80,92 @@ function ChatApplication() {
 
 
   async function handleCreateNewChat() {
-    await handleNewChat();
-    await loadConversations();
+    try {
+      await handleNewChat();
+      await loadConversations();
+    } catch (requestError) {
+      console.error(
+        "New chat creation failed:",
+        requestError,
+      );
+    }
+  }
+
+
+  async function handleChatSubmit(event) {
+    try {
+      const result = await handleSubmit(event);
+
+      if (result !== false) {
+        await loadConversations();
+      }
+
+      return result;
+    } catch (requestError) {
+      console.error(
+        "Chat submission failed:",
+        requestError,
+      );
+
+      return false;
+    }
+  }
+
+
+  async function handleChatKeyDown(event) {
+    if (
+      event.key === "Enter" &&
+      !event.shiftKey &&
+      !event.nativeEvent?.isComposing
+    ) {
+      event.preventDefault();
+
+      await handleChatSubmit(event);
+
+      return;
+    }
+
+    handleKeyDown(event);
+  }
+
+
+  async function handleConversationSelection(
+    selectedConversationId,
+  ) {
+    if (
+      !selectedConversationId ||
+      selectedConversationId === conversationId
+    ) {
+      return;
+    }
+
+    try {
+      await openConversation(
+        selectedConversationId,
+      );
+    } catch (requestError) {
+      console.error(
+        "Conversation loading failed:",
+        requestError,
+      );
+    }
+  }
+
+
+  async function handleRefreshHistory() {
+    try {
+      await loadConversations();
+    } catch (requestError) {
+      console.error(
+        "Conversation history refresh failed:",
+        requestError,
+      );
+    }
+  }
+
+
+  function handleLogout() {
+    logout();
   }
 
 
@@ -91,13 +177,15 @@ function ChatApplication() {
         isLoading={isLoadingHistory}
         error={historyError}
         user={user}
-        onSelectConversation={openConversation}
+        onSelectConversation={
+          handleConversationSelection
+        }
         onDeleteConversation={
           handleDeleteFromSidebar
         }
         onNewChat={handleCreateNewChat}
-        onRefresh={loadConversations}
-        onLogout={logout}
+        onRefresh={handleRefreshHistory}
+        onLogout={handleLogout}
       />
 
       <div className="chat-main">
@@ -123,8 +211,8 @@ function ChatApplication() {
           isLoading={isLoading}
           textareaRef={textareaRef}
           onInputChange={handleInputChange}
-          onKeyDown={handleKeyDown}
-          onSubmit={handleSubmit}
+          onKeyDown={handleChatKeyDown}
+          onSubmit={handleChatSubmit}
         />
       </div>
     </div>
