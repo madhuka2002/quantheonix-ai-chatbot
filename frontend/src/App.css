@@ -700,3 +700,44 @@
     display: none;
   }
 }
+
+.sidebar-search {
+  width: 100%;
+  margin-top: 12px;
+  padding: 10px 12px;
+  box-sizing: border-box;
+  border: 1px solid #374151;
+  border-radius: 9px;
+  background: #1f2937;
+  color: #ffffff;
+  font: inherit;
+}
+
+.sidebar-search::placeholder {
+  color: #9ca3af;
+}
+
+.sidebar-search:focus {
+  outline: 2px solid rgba(99, 102, 241, 0.65);
+  border-color: #6366f1;
+}
+
+.sidebar-conversation {
+  grid-template-columns:
+    minmax(0, 1fr) 30px 30px;
+}
+
+.conversation-rename {
+  width: 30px;
+  height: 30px;
+  border: 0;
+  border-radius: 7px;
+  background: transparent;
+  color: #9ca3af;
+  cursor: pointer;
+}
+
+.conversation-rename:hover {
+  background: #374151;
+  color: #ffffff;
+}

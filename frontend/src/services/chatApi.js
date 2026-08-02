@@ -239,15 +239,75 @@ export async function resetConversation(
   return data;
 }
 
-export async function listConversations({
-  limit = 50,
-  offset = 0,
-} = {}) {
+export async function renameConversation(
+  conversationId,
+  title,
+) {
   let response;
 
   try {
     response = await fetch(
-      `${API_V1_URL}/conversations?limit=${limit}&offset=${offset}`,
+      `${API_V1_URL}/conversations/${conversationId}`,
+      {
+        method: "PATCH",
+        headers: createAuthenticatedHeaders({
+          "Content-Type": "application/json",
+        }),
+        body: JSON.stringify({
+          title,
+        }),
+      },
+    );
+  } catch {
+    throw new Error(
+      "Unable to connect to the chatbot server.",
+    );
+  }
+
+  const data = await parseResponse(response);
+
+  if (response.status === 401) {
+    clearAuthentication();
+  }
+
+  if (!response.ok) {
+    throw createApiError(
+      extractApiErrorMessage(
+        data,
+        "The conversation could not be renamed.",
+      ),
+      response.status,
+      data?.error?.code ?? null,
+    );
+  }
+
+  return data;
+}
+
+export async function listConversations({
+  limit = 50,
+  offset = 0,
+  search = "",
+} = {}) {
+  const query = new URLSearchParams({
+    limit: String(limit),
+    offset: String(offset),
+  });
+
+  const cleanedSearch = search.trim();
+
+  if (cleanedSearch) {
+    query.set(
+      "search",
+      cleanedSearch,
+    );
+  }
+
+  let response;
+
+  try {
+    response = await fetch(
+      `${API_V1_URL}/conversations?${query.toString()}`,
       {
         method: "GET",
         headers: createAuthenticatedHeaders(),
@@ -266,15 +326,13 @@ export async function listConversations({
   }
 
   if (!response.ok) {
-    const errorMessage =
+    throw createApiError(
       extractApiErrorMessage(
         data,
         "The conversations could not be loaded.",
-      );
-
-    throw createApiError(
-      errorMessage,
+      ),
       response.status,
+      data?.error?.code ?? null,
     );
   }
 

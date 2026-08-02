@@ -257,7 +257,6 @@ export function useChat() {
       true;
 
     if (!conversationId) {
-      setIsRestoring(false);
       return undefined;
     }
 
@@ -287,9 +286,7 @@ export function useChat() {
           return;
         }
 
-        if (
-          requestError?.status === 401
-        ) {
+        if (requestError?.status === 404) {
           removeStoredConversationId();
           removeStoredMessages();
 
@@ -298,23 +295,8 @@ export function useChat() {
             createInitialMessages(),
           );
 
-          setError(
-            "Your login session has expired. Please log in again.",
-          );
-
-          return;
-        }
-
-        if (
-          requestError?.status === 404
-        ) {
-          removeStoredConversationId();
-          removeStoredMessages();
-
-          setConversationId(null);
-          setMessages(
-            createInitialMessages(),
-          );
+          setFailedMessage(null);
+          setInput("");
 
           setError(
             "The previous conversation no longer exists. A new chat has been started.",

@@ -6,6 +6,7 @@ import {
 
 import {
   listConversations,
+  renameConversation,
   resetConversation,
 } from "../services/chatApi";
 
@@ -21,6 +22,9 @@ export function useConversationHistory() {
   const [conversations, setConversations] =
     useState([]);
 
+  const [search, setSearch] =
+    useState("");
+
   const [
     isLoadingHistory,
     setIsLoadingHistory,
@@ -31,7 +35,7 @@ export function useConversationHistory() {
 
 
   const loadConversations = useCallback(
-    async () => {
+    async (searchValue = "") => {
       setIsLoadingHistory(true);
       setHistoryError("");
 
@@ -39,17 +43,22 @@ export function useConversationHistory() {
         const data = await listConversations({
           limit: 50,
           offset: 0,
+          search: searchValue,
         });
 
         setConversations(
           normaliseConversations(data),
         );
+
+        return data;
       } catch (error) {
         setHistoryError(
           error instanceof Error
             ? error.message
             : "Conversation history could not be loaded.",
         );
+
+        return null;
       } finally {
         setIsLoadingHistory(false);
       }
@@ -61,7 +70,7 @@ export function useConversationHistory() {
   const removeConversation = useCallback(
     async (conversationId) => {
       if (!conversationId) {
-        return;
+        return false;
       }
 
       await resetConversation(
@@ -75,42 +84,65 @@ export function useConversationHistory() {
               conversation.id !== conversationId,
           ),
       );
+
+      return true;
     },
     [],
   );
 
 
-  const addOrUpdateConversation =
-    useCallback((conversation) => {
-      if (!conversation?.id) {
-        return;
-      }
+  const updateConversationTitle =
+    useCallback(
+      async (
+        conversationId,
+        title,
+      ) => {
+        const cleanedTitle =
+          title.trim();
 
-      setConversations(
-        (currentConversations) => {
-          const remaining =
-            currentConversations.filter(
-              (item) =>
-                item.id !== conversation.id,
-            );
+        if (
+          !conversationId ||
+          !cleanedTitle
+        ) {
+          return null;
+        }
 
-          return [
-            conversation,
-            ...remaining,
-          ];
-        },
-      );
-    }, []);
+        const updatedConversation =
+          await renameConversation(
+            conversationId,
+            cleanedTitle,
+          );
+
+        setConversations(
+          (currentConversations) =>
+            currentConversations.map(
+              (conversation) =>
+                conversation.id ===
+                conversationId
+                  ? {
+                      ...conversation,
+                      title:
+                        updatedConversation.title,
+                    }
+                  : conversation,
+            ),
+        );
+
+        return updatedConversation;
+      },
+      [],
+    );
 
 
   useEffect(() => {
     let isCancelled = false;
 
-    async function restoreConversationHistory() {
+    async function loadInitialHistory() {
       try {
         const data = await listConversations({
           limit: 50,
           offset: 0,
+          search: "",
         });
 
         if (!isCancelled) {
@@ -133,7 +165,7 @@ export function useConversationHistory() {
       }
     }
 
-    void restoreConversationHistory();
+    void loadInitialHistory();
 
     return () => {
       isCancelled = true;
@@ -143,10 +175,12 @@ export function useConversationHistory() {
 
   return {
     conversations,
+    search,
+    setSearch,
     isLoadingHistory,
     historyError,
     loadConversations,
     removeConversation,
-    addOrUpdateConversation,
+    updateConversationTitle,
   };
 }

@@ -27,8 +27,11 @@ export default function ConversationSidebar({
   isLoading,
   error,
   user,
+  search,
+  onSearchChange,
   onSelectConversation,
   onDeleteConversation,
+  onRenameConversation,
   onNewChat,
   onRefresh,
   onLogout,
@@ -54,6 +57,16 @@ export default function ConversationSidebar({
         >
           + New chat
         </button>
+        <input
+          className="sidebar-search"
+          type="search"
+          value={search}
+          onChange={(event) =>
+            onSearchChange(event.target.value)
+          }
+          placeholder="Search conversations"
+          aria-label="Search conversations"
+        />
       </div>
 
       <div className="sidebar-history-header">
@@ -129,6 +142,31 @@ export default function ConversationSidebar({
                   </span>
                 </button>
 
+                <button
+                  className="conversation-rename"
+                  type="button"
+                  onClick={() => {
+                    const nextTitle = window.prompt(
+                      "Enter a new conversation title:",
+                      conversation.title || "",
+                    );
+
+                    const cleanedTitle =
+                      nextTitle?.trim();
+
+                    if (cleanedTitle) {
+                      onRenameConversation(
+                        conversation.id,
+                        cleanedTitle,
+                      );
+                    }
+                  }}
+                  aria-label="Rename conversation"
+                  title="Rename conversation"
+                >
+                  ✎
+                </button>
+                
                 <button
                   className="conversation-delete"
                   type="button"

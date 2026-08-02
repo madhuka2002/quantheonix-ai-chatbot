@@ -1,4 +1,7 @@
 import "../App.css";
+import {
+  useEffect,
+} from "react";
 
 import ChatHeader from "./ChatHeader";
 import ChatInput from "./ChatInput";
@@ -39,11 +42,31 @@ function ChatApplication() {
 
   const {
     conversations,
+    search,
+    setSearch,
     isLoadingHistory,
     historyError,
     loadConversations,
     removeConversation,
+    updateConversationTitle,
   } = useConversationHistory();
+
+
+  useEffect(() => {
+    const timeoutId = window.setTimeout(
+      () => {
+        void loadConversations(search);
+      },
+      300,
+    );
+
+    return () => {
+      window.clearTimeout(timeoutId);
+    };
+  }, [
+    search,
+    loadConversations,
+  ]);
 
 
   async function handleDeleteFromSidebar(
@@ -86,6 +109,24 @@ function ChatApplication() {
     } catch (requestError) {
       console.error(
         "New chat creation failed:",
+        requestError,
+      );
+    }
+  }
+
+
+  async function handleRenameConversation(
+    selectedConversationId,
+    title,
+  ) {
+    try {
+      await updateConversationTitle(
+        selectedConversationId,
+        title,
+      );
+    } catch (requestError) {
+      console.error(
+        "Conversation rename failed:",
         requestError,
       );
     }
@@ -152,18 +193,6 @@ function ChatApplication() {
   }
 
 
-  async function handleRefreshHistory() {
-    try {
-      await loadConversations();
-    } catch (requestError) {
-      console.error(
-        "Conversation history refresh failed:",
-        requestError,
-      );
-    }
-  }
-
-
   function handleLogout() {
     logout();
   }
@@ -177,14 +206,21 @@ function ChatApplication() {
         isLoading={isLoadingHistory}
         error={historyError}
         user={user}
+        search={search}
+        onSearchChange={setSearch}
         onSelectConversation={
           handleConversationSelection
         }
         onDeleteConversation={
           handleDeleteFromSidebar
         }
+        onRenameConversation={
+          handleRenameConversation
+        }
         onNewChat={handleCreateNewChat}
-        onRefresh={handleRefreshHistory}
+        onRefresh={() =>
+          loadConversations(search)
+        }
         onLogout={handleLogout}
       />
 
