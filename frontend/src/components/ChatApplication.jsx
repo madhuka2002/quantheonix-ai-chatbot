@@ -25,6 +25,7 @@ function ChatApplication() {
     messages,
     conversationId,
     isLoading,
+    isStreaming,
     isResetting,
     error,
     failedMessage,
@@ -35,6 +36,7 @@ function ChatApplication() {
     handleSubmit,
     handleRetry,
     handleNewChat,
+    handleStopGeneration,
     openConversation,
   } = useChat();
 
@@ -243,10 +245,13 @@ function ChatApplication() {
         <ChatInput
           input={input}
           isLoading={isLoading}
+          isStreaming={isStreaming}
+          isResetting={isResetting}
           textareaRef={textareaRef}
           onInputChange={handleInputChange}
           onKeyDown={handleChatKeyDown}
           onSubmit={handleChatSubmit}
+          onStop={handleStopGeneration}
         />
       </div>
     </div>

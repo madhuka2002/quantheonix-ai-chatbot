@@ -11,6 +11,13 @@ function MessageList({
     ? messages.filter(Boolean)
     : [];
 
+  const lastMessage =
+    safeMessages.at(-1);
+
+  const hasStreamingAssistant =
+    lastMessage?.role === "assistant" &&
+    lastMessage.content === "";
+
   return (
     <div
       className="chat__messages"
@@ -25,7 +32,10 @@ function MessageList({
         />
       ))}
 
-      {isLoading && <TypingIndicator />}
+      {isLoading &&
+        !hasStreamingAssistant && (
+          <TypingIndicator />
+        )}
 
       <div
         ref={messagesEndRef}

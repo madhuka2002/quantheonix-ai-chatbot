@@ -1,11 +1,13 @@
 function ChatInput({
   input,
   isLoading,
+  isStreaming,
   isResetting,
   textareaRef,
   onInputChange,
   onKeyDown,
   onSubmit,
+  onStop,
 }) {
   const isDisabled = isLoading || isResetting;
 
@@ -35,12 +37,26 @@ function ChatInput({
           autoComplete="off"
         />
 
-        <button
-          type="submit"
-          disabled={!input.trim() || isDisabled}
-        >
-          {isLoading ? "Sending..." : "Send"}
-        </button>
+        {isStreaming ? (
+          <button
+            className="chat__stop-button"
+            type="button"
+            onClick={onStop}
+          >
+            Stop generating
+          </button>
+        ) : (
+          <button
+            className="chat__send-button"
+            type="submit"
+            disabled={
+              isLoading ||
+              !input.trim()
+            }
+          >
+            Send
+          </button>
+        )}
       </form>
 
       <p className="chat__hint">

@@ -6,17 +6,17 @@ import {
 } from "react";
 
 import {
-  getConversation,
-  sendChatMessage,
-} from "../services/chatApi";
-
-import {
   useAutoResizeTextarea,
 } from "./useAutoResizeTextarea";
 
 import {
   useLocalStorage,
 } from "./useLocalStorage";
+
+import {
+  getConversation,
+  streamChatMessage,
+} from "../services/chatApi";
 
 
 const STORAGE_KEYS = {
@@ -131,10 +131,18 @@ export function useChat() {
     setFailedMessage,
   ] = useState(null);
 
+  const [
+    isStreaming,
+    setIsStreaming,
+  ] = useState(false);
+
   const messagesEndRef =
     useRef(null);
 
   const textareaRef =
+    useRef(null);
+
+  const streamAbortControllerRef =
     useRef(null);
 
 
@@ -156,6 +164,7 @@ export function useChat() {
 
   const isBusy =
     isLoading ||
+    isStreaming ||
     isRestoring ||
     isResetting;
 
@@ -337,6 +346,9 @@ export function useChat() {
       return false;
     }
 
+    const assistantMessageId =
+      crypto.randomUUID();
+
     setError("");
     setFailedMessage(null);
     setInput("");
@@ -358,42 +370,125 @@ export function useChat() {
       );
     }
 
+    const pendingAssistantMessage = {
+      id: assistantMessageId,
+      role: "assistant",
+      content: "",
+      createdAt:
+        new Date().toISOString(),
+    };
+
+    setMessages(
+      (currentMessages) => [
+        ...currentMessages,
+        pendingAssistantMessage,
+      ],
+    );
+
+    const abortController =
+      new AbortController();
+
+    streamAbortControllerRef.current =
+      abortController;
+
     setIsLoading(true);
+    setIsStreaming(true);
 
     try {
-      const response =
-        await sendChatMessage(
-          cleanedMessage,
+      const result =
+        await streamChatMessage({
+          message: cleanedMessage,
           conversationId,
-        );
+          signal:
+            abortController.signal,
 
-      setConversationId(
-        response.conversation_id,
-      );
+          onStart(event) {
+            if (
+              event.conversation_id
+            ) {
+              setConversationId(
+                event.conversation_id,
+              );
+            }
+          },
 
-      const assistantMessage = {
-        id: crypto.randomUUID(),
-        role: "assistant",
-        content: response.reply,
-        createdAt:
-          new Date().toISOString(),
-      };
+          onChunk(text) {
+            if (!text) {
+              return;
+            }
 
-      setMessages(
-        (currentMessages) => [
-          ...currentMessages,
-          assistantMessage,
-        ],
-      );
+            setMessages(
+              (currentMessages) =>
+                currentMessages.map(
+                  (messageItem) =>
+                    messageItem.id ===
+                    assistantMessageId
+                      ? {
+                          ...messageItem,
+                          content:
+                            messageItem.content +
+                            text,
+                        }
+                      : messageItem,
+                ),
+            );
+          },
+
+          onDone(event) {
+            if (
+              event.conversation_id
+            ) {
+              setConversationId(
+                event.conversation_id,
+              );
+            }
+          },
+        });
 
       return {
         conversationId:
-          response.conversation_id,
-        reply: response.reply,
+          result.conversationId,
       };
     } catch (requestError) {
+      if (
+        requestError?.name ===
+        "AbortError"
+      ) {
+        setMessages(
+          (currentMessages) =>
+            currentMessages.map(
+              (messageItem) =>
+                messageItem.id ===
+                assistantMessageId &&
+                !messageItem.content
+                  ? {
+                      ...messageItem,
+                      content:
+                        "Generation stopped.",
+                    }
+                  : messageItem,
+            ),
+        );
+
+        return {
+          aborted: true,
+        };
+      }
+
       setFailedMessage(
         cleanedMessage,
+      );
+
+      setMessages(
+        (currentMessages) =>
+          currentMessages.filter(
+            (messageItem) =>
+              !(
+                messageItem.id ===
+                  assistantMessageId &&
+                !messageItem.content
+              ),
+          ),
       );
 
       setError(
@@ -404,6 +499,10 @@ export function useChat() {
 
       return false;
     } finally {
+      streamAbortControllerRef.current =
+        null;
+
+      setIsStreaming(false);
       setIsLoading(false);
       focusTextarea();
     }
@@ -421,6 +520,10 @@ export function useChat() {
     setInput(
       event.target.value,
     );
+  }
+
+  function handleStopGeneration() {
+    streamAbortControllerRef.current?.abort();
   }
 
 
@@ -509,6 +612,7 @@ export function useChat() {
       isRestoring,
 
     isBusy,
+    isStreaming,
     isRestoring,
     isResetting,
 
@@ -523,6 +627,7 @@ export function useChat() {
     handleSubmit,
     handleRetry,
     handleNewChat,
+    handleStopGeneration,
     openConversation,
   };
 }
