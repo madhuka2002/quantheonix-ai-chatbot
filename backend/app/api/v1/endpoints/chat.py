@@ -303,6 +303,34 @@ async def rename_conversation(
     )
 
 
+@router.post(
+    "/conversations/{conversation_id}/regenerate",
+    response_class=StreamingResponse,
+    status_code=status.HTTP_200_OK,
+    summary="Regenerate the latest response",
+)
+async def regenerate_chat_response(
+    conversation_id: str,
+    session: DatabaseSession,
+    current_user: CurrentUser,
+) -> StreamingResponse:
+    service = DatabaseChatService(session)
+
+    event_stream = service.regenerate_message(
+        user_id=current_user.id,
+        conversation_id=conversation_id,
+    )
+
+    return StreamingResponse(
+        event_stream,
+        media_type="application/x-ndjson",
+        headers={
+            "Cache-Control": "no-cache",
+            "X-Content-Type-Options": "nosniff",
+        },
+    )
+
+
 @router.delete(
     "/conversations/{conversation_id}",
     response_model=MessageResponse,

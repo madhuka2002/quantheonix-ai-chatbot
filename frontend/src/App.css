@@ -842,3 +842,23 @@
     animation: none;
   }
 }
+
+.message__regenerate-button {
+  padding: 0.25rem 0.45rem;
+  color: #46536a;
+  font-size: 0.7rem;
+  background: transparent;
+  border: 1px solid currentColor;
+  border-radius: 0.4rem;
+  cursor: pointer;
+  opacity: 0.7;
+}
+
+.message__regenerate-button:hover:not(:disabled) {
+  opacity: 1;
+}
+
+.message__regenerate-button:disabled {
+  cursor: not-allowed;
+  opacity: 0.35;
+}

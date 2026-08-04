@@ -454,6 +454,149 @@ class DatabaseChatService:
             )
 
 
+    async def regenerate_message(
+        self,
+        *,
+        user_id: UUID,
+        conversation_id: str,
+    ) -> AsyncIterator[str]:
+        conversation = None
+        complete_reply = ""
+
+        try:
+            conversation_uuid = (
+                self._parse_conversation_id(
+                    conversation_id,
+                )
+            )
+
+            conversation = (
+                await self._repository
+                .get_conversation_with_messages(
+                    conversation_id=conversation_uuid,
+                    user_id=user_id,
+                )
+            )
+
+            if conversation is None:
+                raise ConversationNotFoundError()
+
+            latest_user_message = (
+                await self._repository
+                .get_latest_user_message(
+                    conversation_id=conversation_uuid,
+                    user_id=user_id,
+                )
+            )
+
+            if latest_user_message is None:
+                raise ConversationNotFoundError()
+
+            await self._repository \
+                .delete_latest_assistant_message(
+                    conversation_id=conversation_uuid,
+                    user_id=user_id,
+                )
+
+            history_messages = [
+                stored_message
+                for stored_message
+                in conversation.messages
+                if stored_message.id !=
+                latest_user_message.id
+            ]
+
+            history = self._build_history(
+                history_messages,
+            )
+
+            yield self._encode_stream_event(
+                {
+                    "type": "start",
+                    "conversation_id": str(
+                        conversation.id,
+                    ),
+                }
+            )
+
+            async for text_chunk in stream_reply(
+                self._client,
+                model_name=settings.gemini_model,
+                history=history,
+                message=latest_user_message.content,
+            ):
+                complete_reply += text_chunk
+
+                yield self._encode_stream_event(
+                    {
+                        "type": "chunk",
+                        "text": text_chunk,
+                    }
+                )
+
+            if not complete_reply.strip():
+                raise ChatGenerationError()
+
+            assistant_message = (
+                await self._repository.add_message(
+                    conversation_id=conversation.id,
+                    user_id=user_id,
+                    role=MessageRole.ASSISTANT,
+                    content=complete_reply,
+                )
+            )
+
+            if assistant_message is None:
+                raise ConversationNotFoundError()
+
+            await self._session.commit()
+
+            yield self._encode_stream_event(
+                {
+                    "type": "done",
+                    "conversation_id": str(
+                        conversation.id,
+                    ),
+                }
+            )
+
+        except asyncio.CancelledError:
+            await self._session.rollback()
+            raise
+
+        except ApplicationError as exc:
+            await self._session.rollback()
+
+            yield self._encode_stream_event(
+                {
+                    "type": "error",
+                    "code": exc.code,
+                    "message": exc.message,
+                }
+            )
+
+        except Exception:
+            await self._session.rollback()
+
+            logger.exception(
+                "Response regeneration failed | "
+                "user_id=%s | conversation_id=%s",
+                user_id,
+                conversation_id,
+            )
+
+            yield self._encode_stream_event(
+                {
+                    "type": "error",
+                    "code": "chat_regeneration_failed",
+                    "message": (
+                        "The response could not be "
+                        "regenerated."
+                    ),
+                }
+            )
+
+
     @staticmethod
     def _parse_conversation_id(
         conversation_id: str,

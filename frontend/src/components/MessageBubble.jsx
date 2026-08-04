@@ -2,7 +2,12 @@ import CopyButton from "./CopyButton";
 import MarkdownMessage from "./MarkdownMessage";
 
 
-function MessageBubble({ message }) {
+function MessageBubble({
+  message,
+  canRegenerate = false,
+  isStreaming = false,
+  onRegenerate,
+}) {
   if (!message) {
     return null;
   }
@@ -29,6 +34,18 @@ function MessageBubble({ message }) {
           copiedLabel="Copied"
           className="message__copy-button"
         />
+
+        {canRegenerate && (
+          <button
+            className="message__regenerate-button"
+            type="button"
+            onClick={onRegenerate}
+            disabled={isStreaming}
+            title="Regenerate response"
+          >
+            Regenerate
+          </button>
+        )}
       </div>
 
       <div className="message__content">

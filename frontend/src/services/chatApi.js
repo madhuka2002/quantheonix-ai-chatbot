@@ -82,7 +82,6 @@ function createAuthenticatedHeaders(
   };
 }
 
-
 export async function sendChatMessage(
   message,
   conversationId = null,
@@ -139,6 +138,168 @@ export async function sendChatMessage(
   return data;
 }
 
+async function consumeNdjsonStream({
+  response,
+  conversationId = null,
+  onStart,
+  onChunk,
+  onDone,
+}) {
+  if (response.status === 401) {
+    clearAuthentication();
+  }
+
+  if (!response.ok) {
+    let responseData = null;
+
+    try {
+      responseData = await response.json();
+    } catch {
+      // The response may not contain JSON.
+    }
+
+    throw createApiError(
+      extractApiErrorMessage(
+        responseData,
+        "The streaming request failed.",
+      ),
+      response.status,
+      responseData?.error?.code ?? null,
+    );
+  }
+
+  if (!response.body) {
+    throw new Error(
+      "The browser could not read the response stream.",
+    );
+  }
+
+  const reader = response.body.getReader();
+  const decoder = new TextDecoder();
+
+  let buffer = "";
+  let finalConversationId =
+    conversationId;
+
+  function processEvent(event) {
+    if (event.type === "start") {
+      finalConversationId =
+        event.conversation_id ??
+        finalConversationId;
+
+      onStart?.(event);
+      return;
+    }
+
+    if (event.type === "chunk") {
+      onChunk?.(
+        event.text ?? "",
+        event,
+      );
+
+      return;
+    }
+
+    if (event.type === "done") {
+      finalConversationId =
+        event.conversation_id ??
+        finalConversationId;
+
+      onDone?.(event);
+      return;
+    }
+
+    if (event.type === "error") {
+      throw createApiError(
+        event.message ||
+          "The chatbot could not complete the request.",
+        500,
+        event.code ?? null,
+      );
+    }
+  }
+
+  try {
+    while (true) {
+      const {
+        value,
+        done,
+      } = await reader.read();
+
+      if (done) {
+        break;
+      }
+
+      buffer += decoder.decode(
+        value,
+        {
+          stream: true,
+        },
+      );
+
+      const lines = buffer.split("\n");
+
+      buffer = lines.pop() ?? "";
+
+      for (const line of lines) {
+        const cleanedLine =
+          line.trim();
+
+        if (!cleanedLine) {
+          continue;
+        }
+
+        let event;
+
+        try {
+          event = JSON.parse(
+            cleanedLine,
+          );
+        } catch (error) {
+          throw new Error(
+            "The chatbot returned an invalid stream event.",
+            {
+              cause: error,
+            },
+          );
+        }
+
+        processEvent(event);
+      }
+    }
+
+    buffer += decoder.decode();
+
+    const remainingLine =
+      buffer.trim();
+
+    if (remainingLine) {
+      let event;
+
+      try {
+        event = JSON.parse(
+          remainingLine,
+        );
+      } catch (error) {
+        throw new Error(
+          "The chatbot returned an invalid final stream event.",
+          {
+            cause: error,
+          },
+        );
+      }
+
+      processEvent(event);
+    }
+
+    return {
+      conversationId:
+        finalConversationId,
+    };
+  } finally {
+    reader.releaseLock();
+  }
+}
 
 export async function streamChatMessage({
   message,
@@ -179,161 +340,65 @@ export async function streamChatMessage({
     );
   }
 
-  if (response.status === 401) {
-    clearAuthentication();
-  }
-
-  if (!response.ok) {
-    let responseData = null;
-
-    try {
-      responseData = await response.json();
-    } catch {
-      // The server may not return JSON.
-    }
-
-    throw createApiError(
-      extractApiErrorMessage(
-        responseData,
-        "The streaming chat request failed.",
-      ),
-      response.status,
-      responseData?.error?.code ?? null,
-    );
-  }
-
-  if (!response.body) {
-    throw new Error(
-      "The browser could not read the response stream.",
-    );
-  }
-
-  const reader = response.body.getReader();
-  const decoder = new TextDecoder();
-
-  let buffer = "";
-  let finalConversationId =
-    conversationId;
-
-  try {
-    while (true) {
-      const {
-        value,
-        done,
-      } = await reader.read();
-
-      if (done) {
-        break;
-      }
-
-      buffer += decoder.decode(
-        value,
-        {
-          stream: true,
-        },
-      );
-
-      const lines = buffer.split("\n");
-      buffer = lines.pop() ?? "";
-
-      for (const line of lines) {
-        const cleanedLine = line.trim();
-
-        if (!cleanedLine) {
-          continue;
-        }
-
-        let event;
-
-        try {
-          event = JSON.parse(
-            cleanedLine,
-          );
-        } catch {
-          throw new Error(
-            "The chatbot returned an invalid stream event.",
-          );
-        }
-
-        if (event.type === "start") {
-          finalConversationId =
-            event.conversation_id;
-
-          onStart?.(event);
-          continue;
-        }
-
-        if (event.type === "chunk") {
-          onChunk?.(
-            event.text ?? "",
-            event,
-          );
-
-          continue;
-        }
-
-        if (event.type === "done") {
-          finalConversationId =
-            event.conversation_id ??
-            finalConversationId;
-
-          onDone?.(event);
-          continue;
-        }
-
-        if (event.type === "error") {
-          throw createApiError(
-            event.message ||
-              "The chatbot could not generate a response.",
-            500,
-            event.code ?? null,
-          );
-        }
-      }
-    }
-
-    const remainingLine =
-      buffer.trim();
-
-    if (remainingLine) {
-      const event = JSON.parse(
-        remainingLine,
-      );
-
-      if (event.type === "chunk") {
-        onChunk?.(
-          event.text ?? "",
-          event,
-        );
-      }
-
-      if (event.type === "done") {
-        finalConversationId =
-          event.conversation_id ??
-          finalConversationId;
-
-        onDone?.(event);
-      }
-
-      if (event.type === "error") {
-        throw createApiError(
-          event.message ||
-            "The chatbot could not generate a response.",
-          500,
-          event.code ?? null,
-        );
-      }
-    }
-
-    return {
-      conversationId:
-        finalConversationId,
-    };
-  } finally {
-    reader.releaseLock();
-  }
+  return consumeNdjsonStream({
+    response,
+    conversationId,
+    onStart,
+    onChunk,
+    onDone,
+  });
 }
 
+export async function regenerateChatMessage({
+  conversationId,
+  signal,
+  onStart,
+  onChunk,
+  onDone,
+}) {
+  if (!conversationId) {
+    throw new Error(
+      "A conversation ID is required.",
+    );
+  }
+
+  let response;
+
+  try {
+    response = await fetch(
+      `${API_V1_URL}/conversations/${encodeURIComponent(
+        conversationId,
+      )}/regenerate`,
+      {
+        method: "POST",
+        headers: createAuthenticatedHeaders({
+          Accept:
+            "application/x-ndjson",
+        }),
+        signal,
+      },
+    );
+  } catch (error) {
+    if (error?.name === "AbortError") {
+      throw error;
+    }
+
+    throw new Error(
+      "Unable to connect to the chatbot server.",
+      {
+        cause: error,
+      },
+    );
+  }
+
+  return consumeNdjsonStream({
+    response,
+    conversationId,
+    onStart,
+    onChunk,
+    onDone,
+  });
+}
 
 export async function getConversation(
   conversationId,
@@ -385,7 +450,6 @@ export async function getConversation(
 
   return data;
 }
-
 
 export async function resetConversation(
   conversationId,
@@ -537,3 +601,4 @@ export async function listConversations({
 
   return data;
 }
+

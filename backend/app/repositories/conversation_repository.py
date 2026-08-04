@@ -7,6 +7,7 @@ from sqlalchemy.orm import selectinload
 
 from app.models.conversation import Conversation
 from app.models.message import Message, MessageRole
+from sqlalchemy import delete, func, select
 
 
 class ConversationRepository:
@@ -171,6 +172,43 @@ class ConversationRepository:
 
         return deleted_id is not None
 
+
+    async def get_latest_user_message(
+        self,
+        *,
+        conversation_id: UUID,
+        user_id: UUID,
+    ) -> Message | None:
+        conversation = await self.get_conversation(
+            conversation_id=conversation_id,
+            user_id=user_id,
+        )
+
+        if conversation is None:
+            return None
+
+        statement = (
+            select(Message)
+            .where(
+                Message.conversation_id ==
+                conversation_id,
+                Message.role ==
+                MessageRole.USER,
+            )
+            .order_by(
+                Message.created_at.desc(),
+            )
+            .limit(1)
+        )
+
+        result = await self._session.execute(
+            statement,
+        )
+
+        return result.scalar_one_or_none()
+
+
+
     async def list_conversations(
         self,
         *,
@@ -179,6 +217,7 @@ class ConversationRepository:
         offset: int = 0,
         search: str | None = None,
     ) -> tuple[list[dict], int]:
+
         filters = [
             Conversation.user_id == user_id,
             Conversation.is_active.is_(True),
@@ -260,3 +299,56 @@ class ConversationRepository:
         ]
 
         return conversations, total
+
+    
+    async def delete_latest_assistant_message(
+        self,
+        *,
+        conversation_id: UUID,
+        user_id: UUID,
+    ) -> bool:
+        conversation = await self.get_conversation(
+            conversation_id=conversation_id,
+            user_id=user_id,
+        )
+
+        if conversation is None:
+            return False
+
+        latest_assistant_statement = (
+            select(Message.id)
+            .where(
+                Message.conversation_id ==
+                conversation_id,
+                Message.role ==
+                MessageRole.ASSISTANT,
+            )
+            .order_by(
+                Message.created_at.desc(),
+            )
+            .limit(1)
+        )
+
+        result = await self._session.execute(
+            latest_assistant_statement,
+        )
+
+        message_id = result.scalar_one_or_none()
+
+        if message_id is None:
+            return False
+
+        await self._session.execute(
+            delete(Message).where(
+                Message.id == message_id,
+            ),
+        )
+
+        await self._session.flush()
+
+        return True
+
+
+
+
+        

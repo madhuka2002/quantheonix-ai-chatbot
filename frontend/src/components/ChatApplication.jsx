@@ -1,5 +1,4 @@
 import "../App.css";
-// import { useEffect } from "react";
 
 import ChatHeader from "./ChatHeader";
 import ChatInput from "./ChatInput";
@@ -37,6 +36,7 @@ function ChatApplication() {
     handleRetry,
     handleNewChat,
     handleStopGeneration,
+    handleRegenerateResponse,
     openConversation,
   } = useChat();
 
@@ -50,23 +50,6 @@ function ChatApplication() {
     removeConversation,
     updateConversationTitle,
   } = useConversationHistory();
-
-
-  // useEffect(() => {
-  //   const timeoutId = window.setTimeout(
-  //     () => {
-  //       void loadConversations(search);
-  //     },
-  //     300,
-  //   );
-
-  //   return () => {
-  //     window.clearTimeout(timeoutId);
-  //   };
-  // }, [
-  //   search,
-  //   loadConversations,
-  // ]);
 
 
   async function handleDeleteFromSidebar(
@@ -92,7 +75,7 @@ function ChatApplication() {
         await handleNewChat();
       }
 
-      await loadConversations();
+      await loadConversations(search);
     } catch (requestError) {
       console.error(
         "Conversation deletion failed:",
@@ -105,7 +88,7 @@ function ChatApplication() {
   async function handleCreateNewChat() {
     try {
       await handleNewChat();
-      await loadConversations();
+      await loadConversations(search);
     } catch (requestError) {
       console.error(
         "New chat creation failed:",
@@ -137,8 +120,11 @@ function ChatApplication() {
     try {
       const result = await handleSubmit(event);
 
-      if (result !== false) {
-        await loadConversations();
+      if (
+        result?.conversationId &&
+        !result?.aborted
+      ) {
+        await loadConversations(search);
       }
 
       return result;
@@ -166,7 +152,7 @@ function ChatApplication() {
       return;
     }
 
-    handleKeyDown(event);
+    await handleKeyDown(event);
   }
 
 
@@ -175,7 +161,8 @@ function ChatApplication() {
   ) {
     if (
       !selectedConversationId ||
-      selectedConversationId === conversationId
+      selectedConversationId ===
+        conversationId
     ) {
       return;
     }
@@ -189,6 +176,30 @@ function ChatApplication() {
         "Conversation loading failed:",
         requestError,
       );
+    }
+  }
+
+
+  async function handleRegenerate() {
+    try {
+      const result =
+        await handleRegenerateResponse();
+
+      if (
+        result?.conversationId &&
+        !result?.aborted
+      ) {
+        await loadConversations(search);
+      }
+
+      return result;
+    } catch (requestError) {
+      console.error(
+        "Response regeneration failed:",
+        requestError,
+      );
+
+      return false;
     }
   }
 
@@ -239,7 +250,9 @@ function ChatApplication() {
         <MessageList
           messages={messages}
           isLoading={isLoading}
+          isStreaming={isStreaming}
           messagesEndRef={messagesEndRef}
+          onRegenerate={handleRegenerate}
         />
 
         <ChatInput

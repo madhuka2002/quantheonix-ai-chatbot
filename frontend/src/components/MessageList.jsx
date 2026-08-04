@@ -1,22 +1,26 @@
 import MessageBubble from "./MessageBubble";
-import TypingIndicator from "./TypingIndicator";
 
 
 function MessageList({
   messages,
   isLoading,
+  isStreaming,
   messagesEndRef,
+  onRegenerate,
 }) {
   const safeMessages = Array.isArray(messages)
     ? messages.filter(Boolean)
     : [];
 
-  const lastMessage =
-    safeMessages.at(-1);
-
-  const hasStreamingAssistant =
-    lastMessage?.role === "assistant" &&
-    lastMessage.content === "";
+  const latestAssistantId = [
+    ...safeMessages,
+  ]
+    .reverse()
+    .find(
+      (message) =>
+        message.role === "assistant" &&
+        message.id !== "welcome-message",
+    )?.id;
 
   return (
     <div
@@ -29,13 +33,14 @@ function MessageList({
         <MessageBubble
           key={message.id}
           message={message}
+          canRegenerate={
+            message.id ===
+            latestAssistantId
+          }
+          isStreaming={isStreaming}
+          onRegenerate={onRegenerate}
         />
       ))}
-
-      {isLoading &&
-        !hasStreamingAssistant && (
-          <TypingIndicator />
-        )}
 
       <div
         ref={messagesEndRef}

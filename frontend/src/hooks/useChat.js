@@ -15,9 +15,9 @@ import {
 
 import {
   getConversation,
+  regenerateChatMessage,
   streamChatMessage,
 } from "../services/chatApi";
-
 
 const STORAGE_KEYS = {
   conversationId:
@@ -182,7 +182,6 @@ export function useChat() {
     });
   }
 
-
   async function openConversation(
     selectedConversationId,
   ) {
@@ -238,7 +237,6 @@ export function useChat() {
       focusTextarea();
     }
   }
-
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({
@@ -326,7 +324,6 @@ export function useChat() {
     setConversationId,
     setMessages,
   ]);
-
 
   async function submitMessage(
     messageText,
@@ -508,13 +505,11 @@ export function useChat() {
     }
   }
 
-
   async function handleSubmit(event) {
     event?.preventDefault?.();
 
     return submitMessage(input);
   }
-
 
   function handleInputChange(event) {
     setInput(
@@ -525,7 +520,6 @@ export function useChat() {
   function handleStopGeneration() {
     streamAbortControllerRef.current?.abort();
   }
-
 
   async function handleKeyDown(event) {
     const isComposing =
@@ -543,7 +537,6 @@ export function useChat() {
 
     return false;
   }
-
 
   async function handleRetry() {
     if (
@@ -566,7 +559,6 @@ export function useChat() {
       },
     );
   }
-
 
   async function handleNewChat() {
     if (isBusy) {
@@ -601,6 +593,172 @@ export function useChat() {
     }
   }
 
+  async function handleRegenerateResponse() {
+    if (
+      isBusy ||
+      !conversationId
+    ) {
+      return false;
+    }
+
+    const latestAssistantIndex =
+      safeMessages.findLastIndex(
+        (message) =>
+          message.role === "assistant" &&
+          message.id !==
+            "welcome-message",
+      );
+
+    if (latestAssistantIndex === -1) {
+      return false;
+    }
+
+    const previousAssistantMessage =
+      safeMessages[
+        latestAssistantIndex
+      ];
+
+    const assistantMessageId =
+      crypto.randomUUID();
+
+    setError("");
+    setFailedMessage(null);
+
+    setMessages(
+      (currentMessages) => {
+        const existingAssistantIndex =
+          currentMessages.findLastIndex(
+            (message) =>
+              message.role === "assistant" &&
+              message.id !==
+                "welcome-message",
+          );
+
+        if (
+          existingAssistantIndex === -1
+        ) {
+          return currentMessages;
+        }
+
+        return [
+          ...currentMessages.slice(
+            0,
+            existingAssistantIndex,
+          ),
+          {
+            id: assistantMessageId,
+            role: "assistant",
+            content: "",
+            createdAt:
+              new Date().toISOString(),
+          },
+          ...currentMessages.slice(
+            existingAssistantIndex + 1,
+          ),
+        ];
+      },
+    );
+
+    const abortController =
+      new AbortController();
+
+    streamAbortControllerRef.current =
+      abortController;
+
+    setIsLoading(true);
+    setIsStreaming(true);
+
+    try {
+      const result =
+        await regenerateChatMessage({
+          conversationId,
+          signal:
+            abortController.signal,
+
+          onStart(event) {
+            if (
+              event.conversation_id
+            ) {
+              setConversationId(
+                event.conversation_id,
+              );
+            }
+          },
+
+          onChunk(text) {
+            if (!text) {
+              return;
+            }
+
+            setMessages(
+              (currentMessages) =>
+                currentMessages.map(
+                  (message) =>
+                    message.id ===
+                    assistantMessageId
+                      ? {
+                          ...message,
+                          content:
+                            message.content +
+                            text,
+                        }
+                      : message,
+                ),
+            );
+          },
+
+          onDone(event) {
+            if (
+              event.conversation_id
+            ) {
+              setConversationId(
+                event.conversation_id,
+              );
+            }
+          },
+        });
+
+      return {
+        conversationId:
+          result.conversationId,
+      };
+    } catch (requestError) {
+      setMessages(
+        (currentMessages) =>
+          currentMessages.map(
+            (message) =>
+              message.id ===
+              assistantMessageId
+                ? previousAssistantMessage
+                : message,
+          ),
+      );
+
+      if (
+        requestError?.name ===
+        "AbortError"
+      ) {
+        return {
+          aborted: true,
+        };
+      }
+
+      setError(
+        requestError instanceof Error
+          ? requestError.message
+          : "The response could not be regenerated.",
+      );
+
+      return false;
+    } finally {
+      streamAbortControllerRef.current =
+        null;
+
+      setIsStreaming(false);
+      setIsLoading(false);
+      focusTextarea();
+    }
+  }
 
   return {
     input,
@@ -628,6 +786,7 @@ export function useChat() {
     handleRetry,
     handleNewChat,
     handleStopGeneration,
+    handleRegenerateResponse,
     openConversation,
   };
 }
