@@ -7,10 +7,12 @@ function MessageList({
   isStreaming,
   messagesEndRef,
   onRegenerate,
+  onEditUserMessage,
 }) {
-  const safeMessages = Array.isArray(messages)
-    ? messages.filter(Boolean)
-    : [];
+  const safeMessages =
+    Array.isArray(messages)
+      ? messages.filter(Boolean)
+      : [];
 
   const latestAssistantId = [
     ...safeMessages,
@@ -37,8 +39,12 @@ function MessageList({
             message.id ===
             latestAssistantId
           }
+          canEdit={
+            message.role === "user"
+          }
           isStreaming={isStreaming}
           onRegenerate={onRegenerate}
+          onEdit={onEditUserMessage}
         />
       ))}
 

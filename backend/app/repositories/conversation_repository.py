@@ -349,6 +349,88 @@ class ConversationRepository:
         return True
 
 
+    async def get_message_for_user(
+        self,
+        *,
+        message_id: UUID,
+        conversation_id: UUID,
+        user_id: UUID,
+    ) -> Message | None:
+        statement = (
+            select(Message)
+            .join(
+                Conversation,
+                Conversation.id ==
+                Message.conversation_id,
+            )
+            .where(
+                Message.id == message_id,
+                Message.conversation_id ==
+                conversation_id,
+                Conversation.user_id ==
+                user_id,
+                Conversation.is_active.is_(
+                    True,
+                ),
+            )
+        )
+
+        result = await self._session.execute(
+            statement,
+        )
+
+        return result.scalar_one_or_none()
 
 
+    async def delete_messages_after(
+        self,
+        *,
+        conversation_id: UUID,
+        user_id: UUID,
+        created_at: datetime,
+        exclude_message_id: UUID,
+    ) -> int:
+        conversation = await self.get_conversation(
+            conversation_id=conversation_id,
+            user_id=user_id,
+        )
+
+        if conversation is None:
+            return 0
+
+        statement = (
+            delete(Message)
+            .where(
+                Message.conversation_id ==
+                conversation_id,
+                Message.created_at >=
+                created_at,
+                Message.id !=
+                exclude_message_id,
+            )
+            .returning(Message.id)
+        )
+
+        result = await self._session.execute(
+            statement,
+        )
+
+        deleted_ids = result.scalars().all()
+
+        await self._session.flush()
+
+        return len(deleted_ids)
+
+
+    async def update_user_message(
+        self,
+        *,
+        message: Message,
+        content: str,
+    ) -> Message:
+        message.content = content.strip()
+
+        await self._session.flush()
+
+        return message
         

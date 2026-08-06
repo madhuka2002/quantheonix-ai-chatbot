@@ -42,3 +42,10 @@ class ChatResponse(BaseModel):
             "Hello! How can I assist you today?"
         ],
     )
+
+
+class EditMessageRequest(BaseModel):
+    message: str = Field(
+        min_length=1,
+        max_length=2000,
+    )

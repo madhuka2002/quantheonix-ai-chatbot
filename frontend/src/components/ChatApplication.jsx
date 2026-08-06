@@ -36,6 +36,7 @@ function ChatApplication() {
     handleRetry,
     handleNewChat,
     handleStopGeneration,
+    handleEditUserMessage,
     handleRegenerateResponse,
     openConversation,
   } = useChat();
@@ -180,6 +181,36 @@ function ChatApplication() {
   }
 
 
+  async function handleEditMessage(
+    messageId,
+    editedContent,
+  ) {
+    try {
+      const result =
+        await handleEditUserMessage(
+          messageId,
+          editedContent,
+        );
+
+      if (
+        result?.conversationId &&
+        !result?.aborted
+      ) {
+        await loadConversations(search);
+      }
+
+      return result;
+    } catch (requestError) {
+      console.error(
+        "Message editing failed:",
+        requestError,
+      );
+
+      return false;
+    }
+  }
+
+
   async function handleRegenerate() {
     try {
       const result =
@@ -253,6 +284,9 @@ function ChatApplication() {
           isStreaming={isStreaming}
           messagesEndRef={messagesEndRef}
           onRegenerate={handleRegenerate}
+          onEditUserMessage={
+            handleEditMessage
+          }
         />
 
         <ChatInput

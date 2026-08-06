@@ -14,6 +14,7 @@ import {
 } from "./useLocalStorage";
 
 import {
+  editMessageAndRegenerate,
   getConversation,
   regenerateChatMessage,
   streamChatMessage,
@@ -25,7 +26,6 @@ const STORAGE_KEYS = {
   messages:
     "quantheonix_chat_messages",
 };
-
 
 const WELCOME_MESSAGE = {
   id: "welcome-message",
@@ -760,6 +760,159 @@ export function useChat() {
     }
   }
 
+  async function handleEditUserMessage(
+    messageId,
+    editedContent,
+  ) {
+    const cleanedContent =
+      editedContent.trim();
+
+    if (
+      isBusy ||
+      !conversationId ||
+      !messageId ||
+      !cleanedContent
+    ) {
+      return false;
+    }
+
+    const selectedMessageIndex =
+      safeMessages.findIndex(
+        (message) =>
+          message.id === messageId &&
+          message.role === "user",
+      );
+
+    if (selectedMessageIndex === -1) {
+      return false;
+    }
+
+    const previousMessages =
+      safeMessages;
+
+    const assistantMessageId =
+      crypto.randomUUID();
+
+    setError("");
+    setFailedMessage(null);
+
+    setMessages([
+      ...safeMessages
+        .slice(0, selectedMessageIndex)
+        .map((message) => ({
+          ...message,
+        })),
+      {
+        ...safeMessages[
+          selectedMessageIndex
+        ],
+        content: cleanedContent,
+      },
+      {
+        id: assistantMessageId,
+        role: "assistant",
+        content: "",
+        createdAt:
+          new Date().toISOString(),
+      },
+    ]);
+
+    const abortController =
+      new AbortController();
+
+    streamAbortControllerRef.current =
+      abortController;
+
+    setIsLoading(true);
+    setIsStreaming(true);
+
+    try {
+      const result =
+        await editMessageAndRegenerate({
+          conversationId,
+          messageId,
+          message: cleanedContent,
+          signal:
+            abortController.signal,
+
+          onStart(event) {
+            if (
+              event.conversation_id
+            ) {
+              setConversationId(
+                event.conversation_id,
+              );
+            }
+          },
+
+          onChunk(text) {
+            if (!text) {
+              return;
+            }
+
+            setMessages(
+              (currentMessages) =>
+                currentMessages.map(
+                  (message) =>
+                    message.id ===
+                    assistantMessageId
+                      ? {
+                          ...message,
+                          content:
+                            message.content +
+                            text,
+                        }
+                      : message,
+                ),
+            );
+          },
+
+          onDone(event) {
+            if (
+              event.conversation_id
+            ) {
+              setConversationId(
+                event.conversation_id,
+              );
+            }
+          },
+        });
+
+      return {
+        conversationId:
+          result.conversationId,
+      };
+    } catch (requestError) {
+      setMessages(
+        previousMessages,
+      );
+
+      if (
+        requestError?.name ===
+        "AbortError"
+      ) {
+        return {
+          aborted: true,
+        };
+      }
+
+      setError(
+        requestError instanceof Error
+          ? requestError.message
+          : "The message could not be edited.",
+      );
+
+      return false;
+    } finally {
+      streamAbortControllerRef.current =
+        null;
+
+      setIsStreaming(false);
+      setIsLoading(false);
+      focusTextarea();
+    }
+  }
+
   return {
     input,
     messages: safeMessages,
@@ -786,6 +939,7 @@ export function useChat() {
     handleRetry,
     handleNewChat,
     handleStopGeneration,
+    handleEditUserMessage,
     handleRegenerateResponse,
     openConversation,
   };

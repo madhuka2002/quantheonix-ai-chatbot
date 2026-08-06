@@ -400,6 +400,79 @@ export async function regenerateChatMessage({
   });
 }
 
+export async function editMessageAndRegenerate({
+  conversationId,
+  messageId,
+  message,
+  signal,
+  onStart,
+  onChunk,
+  onDone,
+}) {
+  if (!conversationId) {
+    throw new Error(
+      "A conversation ID is required.",
+    );
+  }
+
+  if (!messageId) {
+    throw new Error(
+      "A message ID is required.",
+    );
+  }
+
+  const cleanedMessage =
+    message.trim();
+
+  if (!cleanedMessage) {
+    throw new Error(
+      "The edited message cannot be empty.",
+    );
+  }
+
+  let response;
+
+  try {
+    response = await fetch(
+      `${API_V1_URL}/conversations/${encodeURIComponent(
+        conversationId,
+      )}/messages/${encodeURIComponent(
+        messageId,
+      )}/stream`,
+      {
+        method: "PATCH",
+        headers: createAuthenticatedHeaders({
+          Accept: "application/x-ndjson",
+          "Content-Type": "application/json",
+        }),
+        body: JSON.stringify({
+          message: cleanedMessage,
+        }),
+        signal,
+      },
+    );
+  } catch (error) {
+    if (error?.name === "AbortError") {
+      throw error;
+    }
+
+    throw new Error(
+      "Unable to connect to the chatbot server.",
+      {
+        cause: error,
+      },
+    );
+  }
+
+  return consumeNdjsonStream({
+    response,
+    conversationId,
+    onStart,
+    onChunk,
+    onDone,
+  });
+}
+
 export async function getConversation(
   conversationId,
 ) {
