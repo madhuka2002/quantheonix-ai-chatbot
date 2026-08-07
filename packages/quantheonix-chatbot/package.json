@@ -1,0 +1,46 @@
+{
+  "name": "@quantheonix/chatbot",
+  "version": "0.1.0",
+  "description": "Embeddable React AI chatbot widget with streaming and Markdown support.",
+  "type": "module",
+  "main": "./dist/quantheonix-chatbot.js",
+  "module": "./dist/quantheonix-chatbot.js",
+  "style": "./dist/chatbot.css",
+  "exports": {
+    ".": {
+      "import": "./dist/quantheonix-chatbot.js"
+    },
+    "./chatbot.css": "./dist/chatbot.css"
+  },
+  "files": [
+    "dist",
+    "README.md"
+  ],
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "lint": "eslint .",
+    "preview": "vite preview"
+  },
+  "peerDependencies": {
+    "react": ">=18",
+    "react-dom": ">=18"
+  },
+  "dependencies": {
+    "highlight.js": "^11.0.0",
+    "react-markdown": "^10.0.0",
+    "rehype-highlight": "^7.0.0",
+    "remark-gfm": "^4.0.0"
+  },
+  "devDependencies": {
+    "@eslint/js": "^10.0.1",
+    "@vitejs/plugin-react": "^6.0.4",
+    "eslint": "^10.8.0",
+    "eslint-plugin-react-hooks": "^7.1.1",
+    "eslint-plugin-react-refresh": "^0.5.3",
+    "globals": "^17.7.0",
+    "rolldown": "latest",
+    "vite": "^8.2.0"
+  },
+  "license": "MIT"
+}

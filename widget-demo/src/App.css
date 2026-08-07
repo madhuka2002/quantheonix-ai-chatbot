@@ -1,0 +1,40 @@
+#root {
+  min-height: 100vh;
+}
+
+.demo-page {
+  min-height: 100vh;
+  padding: 4rem;
+  color: #172033;
+  background:
+    radial-gradient(
+      circle at top right,
+      #e0e7ff,
+      transparent 35%
+    ),
+    #f8fafc;
+}
+
+.demo-content {
+  max-width: 680px;
+}
+
+.demo-label {
+  color: #4f46e5;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+
+.demo-content h1 {
+  margin: 0.5rem 0 1rem;
+  font-size: clamp(
+    2rem,
+    6vw,
+    4.5rem
+  );
+}
+
+.demo-content p {
+  line-height: 1.7;
+}
