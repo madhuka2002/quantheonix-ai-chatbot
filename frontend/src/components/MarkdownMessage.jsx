@@ -1,62 +1,30 @@
+import { useState } from "react";
 import ReactMarkdown from "react-markdown";
+import rehypeHighlight from "rehype-highlight";
 import remarkGfm from "remark-gfm";
 
-import {
-  Prism as SyntaxHighlighter,
-} from "react-syntax-highlighter";
-
-import {
-  oneDark,
-} from "react-syntax-highlighter/dist/esm/styles/prism";
-
-import CopyButton from "./CopyButton";
-
-
-function extractText(children) {
-  if (typeof children === "string") {
-    return children;
-  }
-
-  if (Array.isArray(children)) {
-    return children
-      .map((child) => extractText(child))
-      .join("");
-  }
-
-  if (
-    children &&
-    typeof children === "object" &&
-    "props" in children
-  ) {
-    return extractText(children.props.children);
-  }
-
-  return "";
-}
+import "highlight.js/styles/github-dark.css";
 
 
 function CodeBlock({
+  inline,
   className,
   children,
-  ...properties
+  ...props
 }) {
-  const languageMatch =
-    /language-(\w+)/.exec(className || "");
+  const [isCopied, setIsCopied] =
+    useState(false);
 
-  const codeText = extractText(children).replace(
+  const codeText = String(children).replace(
     /\n$/,
     "",
   );
 
-  const isInline =
-    !languageMatch &&
-    !codeText.includes("\n");
-
-  if (isInline) {
+  if (inline) {
     return (
       <code
         className="markdown-inline-code"
-        {...properties}
+        {...props}
       >
         {children}
       </code>
@@ -64,77 +32,87 @@ function CodeBlock({
   }
 
   const language =
-    languageMatch?.[1] || "text";
+    className?.replace(
+      "language-",
+      "",
+    ) || "text";
+
+
+  async function handleCopy() {
+    try {
+      await navigator.clipboard.writeText(
+        codeText,
+      );
+
+      setIsCopied(true);
+
+      window.setTimeout(() => {
+        setIsCopied(false);
+      }, 1500);
+    } catch (error) {
+      console.error(
+        "Code copy failed:",
+        error,
+      );
+    }
+  }
+
 
   return (
-    <div className="code-block">
-      <div className="code-block__header">
+    <div className="markdown-code-block">
+      <div className="markdown-code-header">
         <span>{language}</span>
 
-        <CopyButton
-          text={codeText}
-          defaultLabel="Copy code"
-          copiedLabel="Copied"
-          className="code-block__copy"
-        />
+        <button
+          type="button"
+          onClick={handleCopy}
+        >
+          {isCopied ? "Copied" : "Copy"}
+        </button>
       </div>
 
-      <SyntaxHighlighter
-        language={language}
-        style={oneDark}
-        PreTag="div"
-        customStyle={{
-          margin: 0,
-          padding: "1rem",
-          background: "transparent",
-          borderRadius: 0,
-        }}
-        codeTagProps={{
-          style: {
-            fontFamily:
-              '"SFMono-Regular", Consolas, "Liberation Mono", monospace',
-          },
-        }}
-        wrapLongLines
-      >
-        {codeText}
-      </SyntaxHighlighter>
+      <pre>
+        <code
+          className={className}
+          {...props}
+        >
+          {codeText}
+        </code>
+      </pre>
     </div>
   );
 }
 
 
-function MarkdownMessage({ content }) {
+export default function MarkdownMessage({
+  content,
+}) {
   return (
-    <div className="markdown-content">
+    <div className="markdown-message">
       <ReactMarkdown
-        remarkPlugins={[remarkGfm]}
-        skipHtml
+        remarkPlugins={[
+          remarkGfm,
+        ]}
+        rehypePlugins={[
+          rehypeHighlight,
+        ]}
         components={{
           code: CodeBlock,
 
           a({
-            href,
             children,
-            ...properties
+            href,
+            ...props
           }) {
             return (
               <a
                 href={href}
                 target="_blank"
                 rel="noopener noreferrer"
-                {...properties}
+                {...props}
               >
                 {children}
               </a>
-            );
-          },
-
-          table({ children }) {
-            return (
-              <div className="markdown-table-wrapper">
-                <table>{children}</table>
-              </div>
             );
           },
         }}
@@ -144,6 +122,3 @@ function MarkdownMessage({ content }) {
     </div>
   );
 }
-
-
-export default MarkdownMessage;

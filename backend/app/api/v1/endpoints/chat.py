@@ -6,24 +6,27 @@ from fastapi import (
     Query,
     status,
 )
+from fastapi.responses import StreamingResponse
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.dependencies import CurrentUser
 from app.db.session import get_database_session
-from app.schemas.chat import (
-    ChatRequest,
-    ChatResponse,
-)
 from app.schemas.common import MessageResponse
 from app.schemas.conversation import (
     ConversationDetailResponse,
     ConversationListResponse,
+    ConversationRenameRequest,
+    ConversationRenameResponse,
 )
 from app.services.database_chat_service import (
     DatabaseChatService,
 )
-
+from app.schemas.chat import (
+    ChatRequest,
+    ChatResponse,
+    EditMessageRequest,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -80,6 +83,58 @@ async def send_chat_message(
     return ChatResponse(
         conversation_id=result["conversation_id"],
         reply=result["reply"],
+    )
+
+
+@router.post(
+    "/chat/stream",
+    response_class=StreamingResponse,
+    status_code=status.HTTP_200_OK,
+    summary="Stream a chat response",
+    description=(
+        "Streams the assistant response as newline-delimited "
+        "JSON events and stores the completed conversation."
+    ),
+    responses={
+        401: {
+            "description": "Authentication required.",
+        },
+        404: {
+            "description": "Conversation not found.",
+        },
+        422: {
+            "description": "Request validation failed.",
+        },
+    },
+)
+async def stream_chat_message(
+    request: ChatRequest,
+    session: DatabaseSession,
+    current_user: CurrentUser,
+) -> StreamingResponse:
+    service = DatabaseChatService(
+        session,
+    )
+
+    event_stream = service.stream_message(
+        user_id=current_user.id,
+        message=request.message,
+        conversation_id=(
+            request.conversation_id
+        ),
+    )
+
+    return StreamingResponse(
+        event_stream,
+        media_type=(
+            "application/x-ndjson"
+        ),
+        headers={
+            "Cache-Control": "no-cache",
+            "X-Content-Type-Options": (
+                "nosniff"
+            ),
+        },
     )
 
 
@@ -208,6 +263,110 @@ async def get_conversation(
 
     return ConversationDetailResponse.model_validate(
         conversation,
+    )
+
+
+@router.patch(
+    "/conversations/{conversation_id}",
+    response_model=ConversationRenameResponse,
+    status_code=status.HTTP_200_OK,
+    summary="Rename a conversation",
+    description=(
+        "Changes the title of a conversation owned by "
+        "the authenticated user."
+    ),
+    responses={
+        404: {
+            "description": "Conversation not found.",
+        },
+        422: {
+            "description": "Invalid conversation title.",
+        },
+    },
+)
+async def rename_conversation(
+    conversation_id: str,
+    request: ConversationRenameRequest,
+    session: DatabaseSession,
+    current_user: CurrentUser,
+) -> ConversationRenameResponse:
+    service = DatabaseChatService(session)
+
+    conversation = await service.rename_conversation(
+        conversation_id=conversation_id,
+        user_id=current_user.id,
+        title=request.title,
+    )
+
+    return ConversationRenameResponse.model_validate(
+        conversation,
+    )
+
+
+@router.post(
+    "/conversations/{conversation_id}/regenerate",
+    response_class=StreamingResponse,
+    status_code=status.HTTP_200_OK,
+    summary="Regenerate the latest response",
+)
+async def regenerate_chat_response(
+    conversation_id: str,
+    session: DatabaseSession,
+    current_user: CurrentUser,
+) -> StreamingResponse:
+    service = DatabaseChatService(session)
+
+    event_stream = service.regenerate_message(
+        user_id=current_user.id,
+        conversation_id=conversation_id,
+    )
+
+    return StreamingResponse(
+        event_stream,
+        media_type="application/x-ndjson",
+        headers={
+            "Cache-Control": "no-cache",
+            "X-Content-Type-Options": "nosniff",
+        },
+    )
+
+
+@router.patch(
+    "/conversations/{conversation_id}/messages/"
+    "{message_id}/stream",
+    response_class=StreamingResponse,
+    status_code=status.HTTP_200_OK,
+    summary="Edit a message and regenerate",
+)
+async def edit_message_and_regenerate(
+    conversation_id: str,
+    message_id: str,
+    request: EditMessageRequest,
+    session: DatabaseSession,
+    current_user: CurrentUser,
+) -> StreamingResponse:
+    service = DatabaseChatService(
+        session,
+    )
+
+    event_stream = (
+        service.edit_and_regenerate_message(
+            user_id=current_user.id,
+            conversation_id=conversation_id,
+            message_id=message_id,
+            content=request.message,
+        )
+    )
+
+    return StreamingResponse(
+        event_stream,
+        media_type="application/x-ndjson",
+        headers={
+            "Cache-Control": "no-cache",
+            "X-Content-Type-Options": (
+                "nosniff"
+            ),
+        },
     )
 
 

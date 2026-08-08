@@ -1,68 +1,103 @@
-import { useEffect, useState } from "react";
+import {
+  useCallback,
+  useState,
+} from "react";
+
+
+function readStoredValue(
+  key,
+  initialValue,
+) {
+  try {
+    const storedValue =
+      window.localStorage.getItem(key);
+
+    if (storedValue === null) {
+      return typeof initialValue === "function"
+        ? initialValue()
+        : initialValue;
+    }
+
+    return JSON.parse(storedValue);
+  } catch {
+    return typeof initialValue === "function"
+      ? initialValue()
+      : initialValue;
+  }
+}
 
 
 export function useLocalStorage(
-  storageKey,
+  key,
   initialValue,
 ) {
-  const [storedValue, setStoredValue] = useState(
-    () => {
-      try {
-        const savedValue =
-          localStorage.getItem(storageKey);
+  const [storedValue, setStoredValue] =
+    useState(() =>
+      readStoredValue(
+        key,
+        initialValue,
+      ),
+    );
 
-        if (savedValue === null) {
-          return typeof initialValue === "function"
-            ? initialValue()
-            : initialValue;
-        }
 
-        return JSON.parse(savedValue);
-      } catch {
-        return typeof initialValue === "function"
-          ? initialValue()
-          : initialValue;
-      }
+  const setValue = useCallback(
+    (value) => {
+      setStoredValue(
+        (currentValue) => {
+          const nextValue =
+            typeof value === "function"
+              ? value(currentValue)
+              : value;
+
+          try {
+            window.localStorage.setItem(
+              key,
+              JSON.stringify(nextValue),
+            );
+          } catch (error) {
+            console.error(
+              `Could not store "${key}" in localStorage:`,
+              error,
+            );
+          }
+
+          return nextValue;
+        },
+      );
     },
+    [key],
   );
 
 
-  useEffect(() => {
-    try {
-      localStorage.setItem(
-        storageKey,
-        JSON.stringify(storedValue),
-      );
-    } catch (storageError) {
-      console.error(
-        `Unable to save ${storageKey} to localStorage.`,
-        storageError,
-      );
-    }
-  }, [storageKey, storedValue]);
-
-
-  function removeStoredValue() {
-    try {
-      localStorage.removeItem(storageKey);
+  const removeValue = useCallback(
+    () => {
+      try {
+        window.localStorage.removeItem(
+          key,
+        );
+      } catch (error) {
+        console.error(
+          `Could not remove "${key}" from localStorage:`,
+          error,
+        );
+      }
 
       setStoredValue(
         typeof initialValue === "function"
           ? initialValue()
           : initialValue,
       );
-    } catch (storageError) {
-      console.error(
-        `Unable to remove ${storageKey} from localStorage.`,
-        storageError,
-      );
-    }
-  }
+    },
+    [
+      key,
+      initialValue,
+    ],
+  );
 
 
   return [
     storedValue,
-    setStoredValue,
-    removeStoredValue,
+    setValue,
+    removeValue,
   ];
 }

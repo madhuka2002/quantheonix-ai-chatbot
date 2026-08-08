@@ -7,6 +7,7 @@ from sqlalchemy.orm import selectinload
 
 from app.models.conversation import Conversation
 from app.models.message import Message, MessageRole
+from sqlalchemy import delete, func, select
 
 
 class ConversationRepository:
@@ -83,6 +84,27 @@ class ConversationRepository:
 
         return result.scalar_one_or_none()
 
+    async def rename_conversation(
+        self,
+        *,
+        conversation_id: UUID,
+        user_id: UUID,
+        title: str,
+    ) -> Conversation | None:
+        conversation = await self.get_conversation(
+            conversation_id=conversation_id,
+            user_id=user_id,
+        )
+
+        if conversation is None:
+            return None
+
+        conversation.title = title
+
+        await self._session.flush()
+
+        return conversation
+
     async def add_message(
         self,
         *,
@@ -150,24 +172,76 @@ class ConversationRepository:
 
         return deleted_id is not None
 
+
+    async def get_latest_user_message(
+        self,
+        *,
+        conversation_id: UUID,
+        user_id: UUID,
+    ) -> Message | None:
+        conversation = await self.get_conversation(
+            conversation_id=conversation_id,
+            user_id=user_id,
+        )
+
+        if conversation is None:
+            return None
+
+        statement = (
+            select(Message)
+            .where(
+                Message.conversation_id ==
+                conversation_id,
+                Message.role ==
+                MessageRole.USER,
+            )
+            .order_by(
+                Message.created_at.desc(),
+            )
+            .limit(1)
+        )
+
+        result = await self._session.execute(
+            statement,
+        )
+
+        return result.scalar_one_or_none()
+
+
+
     async def list_conversations(
         self,
         *,
         user_id: UUID,
         limit: int = 20,
         offset: int = 0,
+        search: str | None = None,
     ) -> tuple[list[dict], int]:
-        """
-        Return active conversations owned by one user.
 
-        Conversations are ordered from most recently updated
-        to least recently updated.
-        """
+        filters = [
+            Conversation.user_id == user_id,
+            Conversation.is_active.is_(True),
+        ]
+
+        cleaned_search = (
+            search.strip()
+            if isinstance(search, str)
+            else ""
+        )
+
+        if cleaned_search:
+            filters.append(
+                Conversation.title.ilike(
+                    f"%{cleaned_search}%"
+                )
+            )
 
         message_count_subquery = (
             select(
                 Message.conversation_id,
-                func.count(Message.id).label("message_count"),
+                func.count(Message.id).label(
+                    "message_count"
+                ),
             )
             .group_by(Message.conversation_id)
             .subquery()
@@ -188,9 +262,7 @@ class ConversationRepository:
                     == Conversation.id
                 ),
             )
-            .where(
-                Conversation.user_id == user_id,
-            )
+            .where(*filters)
             .order_by(
                 Conversation.updated_at.desc(),
                 Conversation.created_at.desc(),
@@ -201,13 +273,13 @@ class ConversationRepository:
 
         count_query = (
             select(func.count(Conversation.id))
-            .where(
-                Conversation.user_id == user_id,
-            )
+            .where(*filters)
         )
 
         result = await self._session.execute(query)
-        total_result = await self._session.execute(count_query)
+        total_result = await self._session.execute(
+            count_query
+        )
 
         rows = result.all()
         total = total_result.scalar_one()
@@ -217,7 +289,9 @@ class ConversationRepository:
                 "id": conversation.id,
                 "title": conversation.title,
                 "model_name": conversation.model_name,
-                "message_count": int(message_count),
+                "message_count": int(
+                    message_count
+                ),
                 "created_at": conversation.created_at,
                 "updated_at": conversation.updated_at,
             }
@@ -225,3 +299,138 @@ class ConversationRepository:
         ]
 
         return conversations, total
+
+    
+    async def delete_latest_assistant_message(
+        self,
+        *,
+        conversation_id: UUID,
+        user_id: UUID,
+    ) -> bool:
+        conversation = await self.get_conversation(
+            conversation_id=conversation_id,
+            user_id=user_id,
+        )
+
+        if conversation is None:
+            return False
+
+        latest_assistant_statement = (
+            select(Message.id)
+            .where(
+                Message.conversation_id ==
+                conversation_id,
+                Message.role ==
+                MessageRole.ASSISTANT,
+            )
+            .order_by(
+                Message.created_at.desc(),
+            )
+            .limit(1)
+        )
+
+        result = await self._session.execute(
+            latest_assistant_statement,
+        )
+
+        message_id = result.scalar_one_or_none()
+
+        if message_id is None:
+            return False
+
+        await self._session.execute(
+            delete(Message).where(
+                Message.id == message_id,
+            ),
+        )
+
+        await self._session.flush()
+
+        return True
+
+
+    async def get_message_for_user(
+        self,
+        *,
+        message_id: UUID,
+        conversation_id: UUID,
+        user_id: UUID,
+    ) -> Message | None:
+        statement = (
+            select(Message)
+            .join(
+                Conversation,
+                Conversation.id ==
+                Message.conversation_id,
+            )
+            .where(
+                Message.id == message_id,
+                Message.conversation_id ==
+                conversation_id,
+                Conversation.user_id ==
+                user_id,
+                Conversation.is_active.is_(
+                    True,
+                ),
+            )
+        )
+
+        result = await self._session.execute(
+            statement,
+        )
+
+        return result.scalar_one_or_none()
+
+
+    async def delete_messages_after(
+        self,
+        *,
+        conversation_id: UUID,
+        user_id: UUID,
+        created_at: datetime,
+        exclude_message_id: UUID,
+    ) -> int:
+        conversation = await self.get_conversation(
+            conversation_id=conversation_id,
+            user_id=user_id,
+        )
+
+        if conversation is None:
+            return 0
+
+        statement = (
+            delete(Message)
+            .where(
+                Message.conversation_id ==
+                conversation_id,
+                Message.created_at >=
+                created_at,
+                Message.id !=
+                exclude_message_id,
+            )
+            .returning(Message.id)
+        )
+
+        result = await self._session.execute(
+            statement,
+        )
+
+        deleted_ids = result.scalars().all()
+
+        await self._session.flush()
+
+        return len(deleted_ids)
+
+
+    async def update_user_message(
+        self,
+        *,
+        message: Message,
+        content: str,
+    ) -> Message:
+        message.content = content.strip()
+
+        await self._session.flush()
+
+        return message
+        

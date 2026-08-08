@@ -1,17 +1,53 @@
 from datetime import datetime
+from typing import Annotated
 from uuid import UUID
 
 from pydantic import (
     BaseModel,
     ConfigDict,
     Field,
+    StringConstraints,
 )
 
 from app.models.message import MessageRole
 
 
-class ConversationMessageResponse(BaseModel):
-    """One stored message belonging to a conversation."""
+ConversationTitle = Annotated[
+    str,
+    StringConstraints(
+        strip_whitespace=True,
+        min_length=1,
+        max_length=200,
+    ),
+]
+
+
+class ConversationRenameRequest(
+    BaseModel
+):
+    title: ConversationTitle
+
+
+class ConversationRenameResponse(
+    BaseModel
+):
+    """
+    Response returned after renaming a conversation.
+    """
+
+    model_config = ConfigDict(
+        from_attributes=True,
+    )
+
+    id: UUID
+    title: str
+
+class ConversationMessageResponse(
+    BaseModel
+):
+    """
+    One stored message belonging to a conversation.
+    """
 
     model_config = ConfigDict(
         from_attributes=True,
@@ -23,8 +59,12 @@ class ConversationMessageResponse(BaseModel):
     created_at: datetime
 
 
-class ConversationDetailResponse(BaseModel):
-    """Complete conversation details with messages."""
+class ConversationDetailResponse(
+    BaseModel
+):
+    """
+    Complete conversation details with messages.
+    """
 
     model_config = ConfigDict(
         from_attributes=True,
@@ -45,8 +85,12 @@ class ConversationDetailResponse(BaseModel):
     )
 
 
-class ConversationListItem(BaseModel):
-    """Summary information for one conversation."""
+class ConversationListItem(
+    BaseModel
+):
+    """
+    Summary information for one conversation.
+    """
 
     model_config = ConfigDict(
         from_attributes=True,
@@ -60,8 +104,12 @@ class ConversationListItem(BaseModel):
     updated_at: datetime
 
 
-class ConversationListResponse(BaseModel):
-    """Paginated user conversation collection."""
+class ConversationListResponse(
+    BaseModel
+):
+    """
+    Paginated user conversation collection.
+    """
 
     conversations: list[
         ConversationListItem

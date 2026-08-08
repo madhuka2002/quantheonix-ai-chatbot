@@ -1,3 +1,8 @@
+import asyncio
+import json
+import logging
+
+from collections.abc import AsyncIterator
 from uuid import UUID
 
 from anyio import to_thread
@@ -8,6 +13,7 @@ from ai_service import (
     create_client,
     create_history_content,
     generate_reply,
+    stream_reply,
 )
 from app.core.config import settings
 from app.core.exceptions import (
@@ -19,6 +25,9 @@ from app.models.message import MessageRole
 from app.repositories import ConversationRepository
 
 
+logger = logging.getLogger(__name__)
+
+
 class DatabaseChatService:
     """
     Generates AI replies while storing conversations and
@@ -28,9 +37,14 @@ class DatabaseChatService:
     user's ID.
     """
 
-    def __init__(self, session: AsyncSession) -> None:
+    def __init__(
+        self,
+        session: AsyncSession,
+    ) -> None:
         self._session = session
-        self._repository = ConversationRepository(session)
+        self._repository = ConversationRepository(
+            session,
+        )
         self._client = create_client()
 
     async def send_message(
@@ -42,33 +56,36 @@ class DatabaseChatService:
     ) -> dict[str, str]:
         """
         Create or continue a user-owned conversation.
-
-        The transaction stores both the user message and the
-        assistant response. If generation or storage fails,
-        the entire transaction is rolled back.
         """
 
         try:
             if conversation_id is None:
                 conversation = (
-                    await self._repository.create_conversation(
+                    await self._repository
+                    .create_conversation(
                         user_id=user_id,
                         model_name=settings.gemini_model,
-                        title=self._create_title(message),
+                        title=self._create_title(
+                            message,
+                        ),
                     )
                 )
 
                 history = []
 
             else:
-                conversation_uuid = self._parse_conversation_id(
-                    conversation_id,
+                conversation_uuid = (
+                    self._parse_conversation_id(
+                        conversation_id,
+                    )
                 )
 
                 conversation = (
                     await self._repository
                     .get_conversation_with_messages(
-                        conversation_id=conversation_uuid,
+                        conversation_id=(
+                            conversation_uuid
+                        ),
                         user_id=user_id,
                     )
                 )
@@ -91,11 +108,13 @@ class DatabaseChatService:
                 message,
             )
 
-            user_message = await self._repository.add_message(
-                conversation_id=conversation.id,
-                user_id=user_id,
-                role=MessageRole.USER,
-                content=message,
+            user_message = (
+                await self._repository.add_message(
+                    conversation_id=conversation.id,
+                    user_id=user_id,
+                    role=MessageRole.USER,
+                    content=message,
+                )
             )
 
             if user_message is None:
@@ -116,7 +135,9 @@ class DatabaseChatService:
             await self._session.commit()
 
             return {
-                "conversation_id": str(conversation.id),
+                "conversation_id": str(
+                    conversation.id,
+                ),
                 "reply": reply,
             }
 
@@ -136,11 +157,13 @@ class DatabaseChatService:
     ):
         """
         Load one active conversation owned by the user,
-        including all stored messages.
+        including its messages.
         """
 
-        conversation_uuid = self._parse_conversation_id(
-            conversation_id,
+        conversation_uuid = (
+            self._parse_conversation_id(
+                conversation_id,
+            )
         )
 
         conversation = (
@@ -167,13 +190,18 @@ class DatabaseChatService:
         """
 
         try:
-            conversation_uuid = self._parse_conversation_id(
-                conversation_id,
+            conversation_uuid = (
+                self._parse_conversation_id(
+                    conversation_id,
+                )
             )
 
             deleted = (
-                await self._repository.delete_conversation(
-                    conversation_id=conversation_uuid,
+                await self._repository
+                .delete_conversation(
+                    conversation_id=(
+                        conversation_uuid
+                    ),
                     user_id=user_id,
                 )
             )
@@ -199,16 +227,19 @@ class DatabaseChatService:
         user_id: UUID,
         limit: int = 20,
         offset: int = 0,
+        search: str | None = None,
     ) -> dict:
         """
-        List conversations owned by the authenticated user.
+        List active conversations owned by the user.
         """
 
         conversations, total = (
-            await self._repository.list_conversations(
+            await self._repository
+            .list_conversations(
                 user_id=user_id,
                 limit=limit,
                 offset=offset,
+                search=search,
             )
         )
 
@@ -219,16 +250,365 @@ class DatabaseChatService:
             "offset": offset,
         }
 
+    async def rename_conversation(
+        self,
+        *,
+        conversation_id: str,
+        user_id: UUID,
+        title: str,
+    ):
+        """
+        Rename a conversation owned by the user.
+        """
+
+        try:
+            conversation_uuid = (
+                self._parse_conversation_id(
+                    conversation_id,
+                )
+            )
+
+            conversation = (
+                await self._repository
+                .rename_conversation(
+                    conversation_id=(
+                        conversation_uuid
+                    ),
+                    user_id=user_id,
+                    title=title.strip(),
+                )
+            )
+
+            if conversation is None:
+                raise ConversationNotFoundError()
+
+            await self._session.commit()
+
+            return conversation
+
+        except ApplicationError:
+            await self._session.rollback()
+            raise
+
+        except Exception as exc:
+            await self._session.rollback()
+            raise ChatGenerationError() from exc
+
+
+    async def stream_message(
+        self,
+        *,
+        user_id: UUID,
+        message: str,
+        conversation_id: str | None,
+    ) -> AsyncIterator[str]:
+        """
+        Stream an AI reply and store the completed exchange.
+
+        Each yielded value is one JSON object followed by a
+        newline so the frontend can process it incrementally.
+        """
+
+        conversation = None
+        complete_reply = ""
+
+        try:
+            if conversation_id is None:
+                conversation = (
+                    await self._repository
+                    .create_conversation(
+                        user_id=user_id,
+                        model_name=settings.gemini_model,
+                        title=self._create_title(
+                            message,
+                        ),
+                    )
+                )
+
+                history = []
+
+            else:
+                conversation_uuid = (
+                    self._parse_conversation_id(
+                        conversation_id,
+                    )
+                )
+
+                conversation = (
+                    await self._repository
+                    .get_conversation_with_messages(
+                        conversation_id=(
+                            conversation_uuid
+                        ),
+                        user_id=user_id,
+                    )
+                )
+
+                if conversation is None:
+                    raise ConversationNotFoundError()
+
+                history = self._build_history(
+                    conversation.messages,
+                )
+
+            yield self._encode_stream_event(
+                {
+                    "type": "start",
+                    "conversation_id": str(
+                        conversation.id,
+                    ),
+                }
+            )
+
+            async for text_chunk in stream_reply(
+                self._client,
+                model_name=settings.gemini_model,
+                history=history,
+                message=message,
+            ):
+                complete_reply += text_chunk
+
+                yield self._encode_stream_event(
+                    {
+                        "type": "chunk",
+                        "text": text_chunk,
+                    }
+                )
+
+            if not complete_reply.strip():
+                raise ChatGenerationError()
+
+            user_message = (
+                await self._repository.add_message(
+                    conversation_id=conversation.id,
+                    user_id=user_id,
+                    role=MessageRole.USER,
+                    content=message,
+                )
+            )
+
+            if user_message is None:
+                raise ConversationNotFoundError()
+
+            assistant_message = (
+                await self._repository.add_message(
+                    conversation_id=conversation.id,
+                    user_id=user_id,
+                    role=MessageRole.ASSISTANT,
+                    content=complete_reply,
+                )
+            )
+
+            if assistant_message is None:
+                raise ConversationNotFoundError()
+
+            await self._session.commit()
+
+            yield self._encode_stream_event(
+                {
+                    "type": "done",
+                    "conversation_id": str(
+                        conversation.id,
+                    ),
+                }
+            )
+
+        except asyncio.CancelledError:
+            await self._session.rollback()
+            raise
+
+        except ApplicationError as exc:
+            await self._session.rollback()
+
+            yield self._encode_stream_event(
+                {
+                    "type": "error",
+                    "code": exc.code,
+                    "message": exc.message,
+                }
+            )
+
+        except Exception:
+            await self._session.rollback()
+
+            logger.exception(
+                "Streaming chat generation failed | "
+                "user_id=%s | conversation_id=%s",
+                user_id,
+                (
+                    str(conversation.id)
+                    if conversation is not None
+                    else conversation_id
+                ),
+            )
+
+            yield self._encode_stream_event(
+                {
+                    "type": "error",
+                    "code": "chat_generation_failed",
+                    "message": (
+                        "The chatbot could not generate "
+                        "a response at this time."
+                    ),
+                }
+            )
+
+
+    async def regenerate_message(
+        self,
+        *,
+        user_id: UUID,
+        conversation_id: str,
+    ) -> AsyncIterator[str]:
+        conversation = None
+        complete_reply = ""
+
+        try:
+            conversation_uuid = (
+                self._parse_conversation_id(
+                    conversation_id,
+                )
+            )
+
+            conversation = (
+                await self._repository
+                .get_conversation_with_messages(
+                    conversation_id=conversation_uuid,
+                    user_id=user_id,
+                )
+            )
+
+            if conversation is None:
+                raise ConversationNotFoundError()
+
+            latest_user_message = (
+                await self._repository
+                .get_latest_user_message(
+                    conversation_id=conversation_uuid,
+                    user_id=user_id,
+                )
+            )
+
+            if latest_user_message is None:
+                raise ConversationNotFoundError()
+
+            await self._repository \
+                .delete_latest_assistant_message(
+                    conversation_id=conversation_uuid,
+                    user_id=user_id,
+                )
+
+            history_messages = [
+                stored_message
+                for stored_message
+                in conversation.messages
+                if stored_message.id !=
+                latest_user_message.id
+            ]
+
+            history = self._build_history(
+                history_messages,
+            )
+
+            yield self._encode_stream_event(
+                {
+                    "type": "start",
+                    "conversation_id": str(
+                        conversation.id,
+                    ),
+                }
+            )
+
+            async for text_chunk in stream_reply(
+                self._client,
+                model_name=settings.gemini_model,
+                history=history,
+                message=latest_user_message.content,
+            ):
+                complete_reply += text_chunk
+
+                yield self._encode_stream_event(
+                    {
+                        "type": "chunk",
+                        "text": text_chunk,
+                    }
+                )
+
+            if not complete_reply.strip():
+                raise ChatGenerationError()
+
+            assistant_message = (
+                await self._repository.add_message(
+                    conversation_id=conversation.id,
+                    user_id=user_id,
+                    role=MessageRole.ASSISTANT,
+                    content=complete_reply,
+                )
+            )
+
+            if assistant_message is None:
+                raise ConversationNotFoundError()
+
+            await self._session.commit()
+
+            yield self._encode_stream_event(
+                {
+                    "type": "done",
+                    "conversation_id": str(
+                        conversation.id,
+                    ),
+                }
+            )
+
+        except asyncio.CancelledError:
+            await self._session.rollback()
+            raise
+
+        except ApplicationError as exc:
+            await self._session.rollback()
+
+            yield self._encode_stream_event(
+                {
+                    "type": "error",
+                    "code": exc.code,
+                    "message": exc.message,
+                }
+            )
+
+        except Exception:
+            await self._session.rollback()
+
+            logger.exception(
+                "Response regeneration failed | "
+                "user_id=%s | conversation_id=%s",
+                user_id,
+                conversation_id,
+            )
+
+            yield self._encode_stream_event(
+                {
+                    "type": "error",
+                    "code": "chat_regeneration_failed",
+                    "message": (
+                        "The response could not be "
+                        "regenerated."
+                    ),
+                }
+            )
+
+
     @staticmethod
     def _parse_conversation_id(
         conversation_id: str,
     ) -> UUID:
         """
-        Validate and convert a string conversation ID.
+        Validate and convert a conversation identifier.
         """
 
         try:
-            return UUID(conversation_id)
+            return UUID(
+                conversation_id,
+            )
 
         except (
             TypeError,
@@ -238,9 +618,11 @@ class DatabaseChatService:
             raise ConversationNotFoundError() from exc
 
     @staticmethod
-    def _build_history(messages) -> list:
+    def _build_history(
+        messages,
+    ) -> list:
         """
-        Convert loaded database messages into Gemini history.
+        Convert stored database messages into Gemini history.
         """
 
         history = []
@@ -262,16 +644,223 @@ class DatabaseChatService:
         return history
 
     @staticmethod
-    def _create_title(message: str) -> str:
+    def _create_title(
+        message: str,
+    ) -> str:
         """
-        Create a simple title from the first user message.
+        Create a title from the first user message.
         """
 
         normalised_message = " ".join(
             message.strip().split(),
         )
 
-        if len(normalised_message) <= 80:
+        maximum_length = 80
+
+        if (
+            len(normalised_message)
+            <= maximum_length
+        ):
             return normalised_message
 
-        return f"{normalised_message[:77]}..."
+        return (
+            normalised_message[
+                :maximum_length - 3
+            ].rstrip()
+            + "..."
+        )
+
+    
+    @staticmethod
+    def _encode_stream_event(
+        event: dict,
+    ) -> str:
+        """
+        Encode one NDJSON streaming event.
+        """
+
+        return (
+            json.dumps(
+                event,
+                ensure_ascii=False,
+            )
+            + "\n"
+        )
+
+
+    async def edit_and_regenerate_message(
+        self,
+        *,
+        user_id: UUID,
+        conversation_id: str,
+        message_id: str,
+        content: str,
+    ) -> AsyncIterator[str]:
+        conversation = None
+        complete_reply = ""
+
+        try:
+            conversation_uuid = (
+                self._parse_conversation_id(
+                    conversation_id,
+                )
+            )
+
+            try:
+                message_uuid = UUID(
+                    message_id,
+                )
+            except (
+                TypeError,
+                ValueError,
+                AttributeError,
+            ) as exc:
+                raise ConversationNotFoundError() from exc
+
+            conversation = (
+                await self._repository
+                .get_conversation_with_messages(
+                    conversation_id=conversation_uuid,
+                    user_id=user_id,
+                )
+            )
+
+            if conversation is None:
+                raise ConversationNotFoundError()
+
+            user_message = (
+                await self._repository
+                .get_message_for_user(
+                    message_id=message_uuid,
+                    conversation_id=(
+                        conversation_uuid
+                    ),
+                    user_id=user_id,
+                )
+            )
+
+            if (
+                user_message is None or
+                user_message.role !=
+                MessageRole.USER
+            ):
+                raise ConversationNotFoundError()
+
+            history_messages = [
+                stored_message
+                for stored_message
+                in conversation.messages
+                if (
+                    stored_message.created_at <
+                    user_message.created_at
+                )
+            ]
+
+            await self._repository.delete_messages_after(
+                conversation_id=conversation_uuid,
+                user_id=user_id,
+                created_at=user_message.created_at,
+                exclude_message_id=user_message.id,
+            )
+
+            await self._repository.update_user_message(
+                message=user_message,
+                content=content,
+            )
+
+            history = self._build_history(
+                history_messages,
+            )
+
+            yield self._encode_stream_event(
+                {
+                    "type": "start",
+                    "conversation_id": str(
+                        conversation.id,
+                    ),
+                    "message_id": str(
+                        user_message.id,
+                    ),
+                }
+            )
+
+            async for text_chunk in stream_reply(
+                self._client,
+                model_name=settings.gemini_model,
+                history=history,
+                message=user_message.content,
+            ):
+                complete_reply += text_chunk
+
+                yield self._encode_stream_event(
+                    {
+                        "type": "chunk",
+                        "text": text_chunk,
+                    }
+                )
+
+            if not complete_reply.strip():
+                raise ChatGenerationError()
+
+            assistant_message = (
+                await self._repository.add_message(
+                    conversation_id=conversation.id,
+                    user_id=user_id,
+                    role=MessageRole.ASSISTANT,
+                    content=complete_reply,
+                )
+            )
+
+            if assistant_message is None:
+                raise ConversationNotFoundError()
+
+            await self._session.commit()
+
+            yield self._encode_stream_event(
+                {
+                    "type": "done",
+                    "conversation_id": str(
+                        conversation.id,
+                    ),
+                }
+            )
+
+        except asyncio.CancelledError:
+            await self._session.rollback()
+            raise
+
+        except ApplicationError as exc:
+            await self._session.rollback()
+
+            yield self._encode_stream_event(
+                {
+                    "type": "error",
+                    "code": exc.code,
+                    "message": exc.message,
+                }
+            )
+
+        except Exception:
+            await self._session.rollback()
+
+            logger.exception(
+                "Edit and regenerate failed | "
+                "user_id=%s | conversation_id=%s "
+                "| message_id=%s",
+                user_id,
+                conversation_id,
+                message_id,
+            )
+
+            yield self._encode_stream_event(
+                {
+                    "type": "error",
+                    "code": (
+                        "message_edit_failed"
+                    ),
+                    "message": (
+                        "The message could not be "
+                        "edited and regenerated."
+                    ),
+                }
+            )
