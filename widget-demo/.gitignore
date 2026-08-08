@@ -12,6 +12,9 @@ dist
 dist-ssr
 *.local
 
+# Local npm package archives
+*.tgz
+
 # Editor directories and files
 .vscode/*
 !.vscode/extensions.json
