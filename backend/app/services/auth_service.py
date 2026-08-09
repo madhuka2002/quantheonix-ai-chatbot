@@ -1,3 +1,6 @@
+from dataclasses import dataclass
+from uuid import UUID
+
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -6,23 +9,23 @@ from app.core.exceptions import (
     InvalidCredentialsError,
     UserAlreadyExistsError,
 )
-from app.core.security import hash_password, verify_password
-from app.models.user import User
-from app.repositories.user_repository import UserRepository
-from app.schemas.user import UserCreate
-
 from app.core.security import (
     create_access_token,
+    create_refresh_token,
+    decode_refresh_token,
     hash_password,
     verify_password,
 )
-
-from dataclasses import dataclass
 from app.models.user import User
+from app.repositories.user_repository import (
+    UserRepository,
+)
+from app.schemas.user import UserCreate
 
 @dataclass(slots=True)
 class LoginResult:
     access_token: str
+    refresh_token: str
     user: User
 
 class AuthService:
@@ -123,7 +126,7 @@ class AuthService:
         password: str,
     ) -> LoginResult:
         """
-        Authenticate a user and issue an access token.
+        Authenticate a user and issue access and refresh tokens.
         """
 
         user = await self.authenticate_user(
@@ -131,9 +134,55 @@ class AuthService:
             password=password,
         )
 
-        access_token = create_access_token(user.id)
+        access_token = create_access_token(
+            user.id,
+        )
+
+        refresh_token = create_refresh_token(
+            user.id,
+        )
 
         return LoginResult(
             access_token=access_token,
+            refresh_token=refresh_token,
+            user=user,
+        )
+
+
+    async def refresh_tokens(
+        self,
+        refresh_token: str,
+    ) -> LoginResult:
+        """
+        Validate a refresh token and issue a new token pair.
+        """
+
+        user_id = decode_refresh_token(
+            refresh_token,
+        )
+
+        user = await self._user_repository.get_by_id(
+            user_id,
+        )
+
+        if user is None:
+            raise InvalidCredentialsError()
+
+        if not user.is_active:
+            raise InactiveUserError()
+
+        access_token = create_access_token(
+            user.id,
+        )
+
+        new_refresh_token = (
+            create_refresh_token(
+                user.id,
+            )
+        )
+
+        return LoginResult(
+            access_token=access_token,
+            refresh_token=new_refresh_token,
             user=user,
         )

@@ -118,3 +118,84 @@ def decode_access_token(token: str) -> UUID:
         return UUID(subject)
     except (TypeError, ValueError) as error:
         raise InvalidTokenError() from error
+
+
+def create_refresh_token(
+    user_id: UUID,
+    expires_delta: timedelta | None = None,
+) -> str:
+    """
+    Generate a signed JWT refresh token.
+    """
+
+    issued_at = datetime.now(UTC)
+
+    expiration = issued_at + (
+        expires_delta
+        if expires_delta is not None
+        else timedelta(
+            days=settings.refresh_token_expire_days,
+        )
+    )
+
+    payload = {
+        "sub": str(user_id),
+        "type": "refresh",
+        "iat": issued_at,
+        "exp": expiration,
+    }
+
+    return jwt.encode(
+        payload,
+        settings.jwt_secret_key,
+        algorithm=settings.jwt_algorithm,
+    )
+
+
+def decode_refresh_token(
+    token: str,
+) -> UUID:
+    """
+    Validate a refresh token and return its user UUID.
+    """
+
+    try:
+        payload = jwt.decode(
+            token,
+            settings.jwt_secret_key,
+            algorithms=[
+                settings.jwt_algorithm,
+            ],
+            options={
+                "require": [
+                    "sub",
+                    "type",
+                    "iat",
+                    "exp",
+                ],
+            },
+        )
+
+    except ExpiredSignatureError as error:
+        raise ExpiredTokenError() from error
+
+    except JWTInvalidTokenError as error:
+        raise InvalidTokenError() from error
+
+    if payload.get("type") != "refresh":
+        raise InvalidTokenError()
+
+    subject = payload.get("sub")
+
+    if not isinstance(subject, str):
+        raise InvalidTokenError()
+
+    try:
+        return UUID(subject)
+
+    except (
+        TypeError,
+        ValueError,
+    ) as error:
+        raise InvalidTokenError() from error
+        

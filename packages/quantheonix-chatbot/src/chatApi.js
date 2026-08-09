@@ -15,14 +15,14 @@ function createApiError(
 async function resolveAccessToken({
   accessToken,
   getAccessToken,
+  forceRefresh = false,
 }) {
   if (
-    typeof getAccessToken ===
-    "function"
+    typeof getAccessToken === "function"
   ) {
-    return (
-      await getAccessToken()
-    );
+    return await getAccessToken({
+      forceRefresh,
+    });
   }
 
   return accessToken;
@@ -195,29 +195,26 @@ export async function streamWidgetMessage({
     );
   }
 
-  const token =
-    await resolveAccessToken({
-      accessToken,
-      getAccessToken,
-    });
+  const endpoint =
+    `${apiUrl.replace(/\/$/, "")}/api/v1/chat/stream`;
 
-  const headers = {
-    Accept:
-      "application/x-ndjson",
-    "Content-Type":
-      "application/json",
-  };
+  async function makeRequest(
+    currentToken,
+  ) {
+    const headers = {
+      Accept:
+        "application/x-ndjson",
+      "Content-Type":
+        "application/json",
+    };
 
-  if (token) {
-    headers.Authorization =
-      `Bearer ${token}`;
-  }
+    if (currentToken) {
+      headers.Authorization =
+        `Bearer ${currentToken}`;
+    }
 
-  let response;
-
-  try {
-    response = await fetch(
-      `${apiUrl.replace(/\/$/, "")}/api/v1/chat/stream`,
+    return fetch(
+      endpoint,
       {
         method: "POST",
         headers,
@@ -229,10 +226,56 @@ export async function streamWidgetMessage({
         signal,
       },
     );
+  }
+
+  let token =
+    await resolveAccessToken({
+      accessToken,
+      getAccessToken,
+      forceRefresh: false,
+    });
+
+  let response;
+
+  try {
+    response = await makeRequest(
+      token,
+    );
+
+    if (
+      response.status === 401 &&
+      typeof getAccessToken ===
+        "function"
+    ) {
+      token =
+        await resolveAccessToken({
+          accessToken,
+          getAccessToken,
+          forceRefresh: true,
+        });
+
+      if (!token) {
+        throw createApiError(
+          "Authentication could not be refreshed.",
+          401,
+          "authentication_refresh_failed",
+        );
+      }
+
+      response = await makeRequest(
+        token,
+      );
+    }
   } catch (error) {
     if (
       error?.name ===
       "AbortError"
+    ) {
+      throw error;
+    }
+
+    if (
+      error?.status === 401
     ) {
       throw error;
     }
