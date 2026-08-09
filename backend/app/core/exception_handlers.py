@@ -49,6 +49,20 @@ async def application_error_handler(
     exception: ApplicationError,
 ) -> JSONResponse:
     request_id = get_request_id(request)
+    headers = {
+        "X-Request-ID": request_id,
+    }
+
+    retry_after = getattr(
+        exception,
+        "retry_after",
+        None,
+    )
+
+    if retry_after is not None:
+        headers["Retry-After"] = str(
+            retry_after,
+        )
 
     logger.warning(
         "Application error | "
@@ -66,9 +80,7 @@ async def application_error_handler(
             request_id=request_id,
             details=exception.details,
         ),
-        headers={
-            "X-Request-ID": request_id,
-        },
+        headers=headers,
     )
 
 

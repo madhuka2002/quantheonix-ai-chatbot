@@ -15,6 +15,7 @@ from app.services.auth_service import AuthService
 from app.core.config import settings
 from app.schemas.auth import (
     LoginRequest,
+    RefreshTokenRequest,
     RegistrationResponse,
     TokenResponse,
 )
@@ -97,11 +98,58 @@ async def login(
 
     return TokenResponse(
         access_token=result.access_token,
+        refresh_token=result.refresh_token,
         token_type="bearer",
         expires_in=(
-            settings.access_token_expire_minutes * 60
+            settings.access_token_expire_minutes
+            * 60
         ),
-        user=UserResponse.model_validate(result.user),
+        refresh_expires_in=(
+            settings.refresh_token_expire_days
+            * 24
+            * 60
+            * 60
+        ),
+        user=UserResponse.model_validate(
+            result.user,
+        ),
+    )
+
+@router.post(
+    "/refresh",
+    response_model=TokenResponse,
+    status_code=status.HTTP_200_OK,
+    summary="Refresh authentication tokens",
+)
+async def refresh_tokens(
+    request: RefreshTokenRequest,
+    session: DatabaseSession,
+) -> TokenResponse:
+    service = AuthService(
+        session,
+    )
+
+    result = await service.refresh_tokens(
+        request.refresh_token,
+    )
+
+    return TokenResponse(
+        access_token=result.access_token,
+        refresh_token=result.refresh_token,
+        token_type="bearer",
+        expires_in=(
+            settings.access_token_expire_minutes
+            * 60
+        ),
+        refresh_expires_in=(
+            settings.refresh_token_expire_days
+            * 24
+            * 60
+            * 60
+        ),
+        user=UserResponse.model_validate(
+            result.user,
+        ),
     )
 
 @router.get(

@@ -258,3 +258,33 @@ class DatabaseOperationError(ApplicationError):
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             details=details,
         )
+
+
+# =========================================================
+# Rate limiting exceptions
+# =========================================================
+
+
+class RateLimitExceededError(ApplicationError):
+    """
+    Raised when a client exceeds an application-level
+    request rate limit.
+    """
+
+    def __init__(
+        self,
+        *,
+        retry_after: int,
+    ) -> None:
+        super().__init__(
+            code="rate_limit_exceeded",
+            message=(
+                "Too many requests. Please try again shortly."
+            ),
+            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+            details={
+                "retry_after": retry_after,
+            },
+        )
+
+        self.retry_after = retry_after
