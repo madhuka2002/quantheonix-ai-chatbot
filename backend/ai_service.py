@@ -1,4 +1,7 @@
-from collections.abc import Sequence
+from collections.abc import (
+    AsyncIterator,
+    Sequence,
+)
 
 from google import genai
 from google.genai import types
@@ -10,7 +13,7 @@ from config import (
     validate_config,
 )
 from prompts import SYSTEM_INSTRUCTION
-from collections.abc import AsyncIterator
+
 
 
 def create_client() -> genai.Client:
@@ -97,7 +100,6 @@ def generate_reply(
 
     return response.text
 
-
 async def stream_reply(
     client,
     *,
@@ -105,6 +107,45 @@ async def stream_reply(
     history: list,
     message: str,
 ) -> AsyncIterator[str]:
+    """
+    Stream Gemini text chunks for one user message.
+
+    The same system instruction and generation settings used
+    by the standard chat flow are applied to streaming.
+    """
+
+    contents = [
+        *history,
+        create_history_content(
+            role="user",
+            content=message,
+        ),
+    ]
+
+    response_stream = (
+        await client.aio.models.generate_content_stream(
+            model=model_name,
+            contents=contents,
+            config=types.GenerateContentConfig(
+                system_instruction=(
+                    SYSTEM_INSTRUCTION
+                ),
+                temperature=(
+                    GEMINI_TEMPERATURE
+                ),
+            ),
+        )
+    )
+
+    async for chunk in response_stream:
+        chunk_text = getattr(
+            chunk,
+            "text",
+            None,
+        )
+
+        if chunk_text:
+            yield chunk_text
     """
     Stream Gemini text chunks for one user message.
     """

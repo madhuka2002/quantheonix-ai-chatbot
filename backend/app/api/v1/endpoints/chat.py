@@ -27,6 +27,9 @@ from app.schemas.chat import (
     ChatResponse,
     EditMessageRequest,
 )
+from app.api.dependencies.rate_limit import (
+    ChatRateLimit,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -71,6 +74,7 @@ async def send_chat_message(
     request: ChatRequest,
     session: DatabaseSession,
     current_user: CurrentUser,
+    _: ChatRateLimit,
 ) -> ChatResponse:
     service = DatabaseChatService(session)
 
@@ -111,6 +115,7 @@ async def stream_chat_message(
     request: ChatRequest,
     session: DatabaseSession,
     current_user: CurrentUser,
+    _: ChatRateLimit,
 ) -> StreamingResponse:
     service = DatabaseChatService(
         session,
@@ -313,6 +318,7 @@ async def regenerate_chat_response(
     conversation_id: str,
     session: DatabaseSession,
     current_user: CurrentUser,
+    _: ChatRateLimit,
 ) -> StreamingResponse:
     service = DatabaseChatService(session)
 
@@ -344,6 +350,7 @@ async def edit_message_and_regenerate(
     request: EditMessageRequest,
     session: DatabaseSession,
     current_user: CurrentUser,
+    _: ChatRateLimit,
 ) -> StreamingResponse:
     service = DatabaseChatService(
         session,

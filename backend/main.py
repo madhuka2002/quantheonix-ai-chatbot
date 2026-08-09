@@ -26,6 +26,7 @@ from app.core.exceptions import (
 )
 from app.core.logging import configure_logging
 from app.core.middleware import (
+    RateLimitMiddleware,
     RequestContextMiddleware,
 )
 from app.db.session import close_database_engine
@@ -83,9 +84,13 @@ app.add_middleware(
 
 
 app.add_middleware(
-    RequestContextMiddleware,
+    RateLimitMiddleware,
 )
 
+
+app.add_middleware(
+    RequestContextMiddleware,
+)
 
 app.add_exception_handler(
     ApplicationError,

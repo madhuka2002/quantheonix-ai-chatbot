@@ -15,6 +15,17 @@ class Settings(BaseSettings):
     jwt_secret_key: str
     jwt_algorithm: str = "HS256"
     access_token_expire_minutes: int = 30
+
+        # Application rate limiting
+    rate_limit_enabled: bool = True
+
+    rate_limit_login_requests: int = 10
+    rate_limit_register_requests: int = 5
+    rate_limit_refresh_requests: int = 30
+    rate_limit_chat_requests: int = 20
+
+    rate_limit_window_seconds: int = 60
+
     refresh_token_expire_days: int = 7
 
     api_v1_prefix: str = "/api/v1"
