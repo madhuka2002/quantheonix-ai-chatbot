@@ -63,12 +63,11 @@ app = FastAPI(
     title=settings.app_name,
     version=settings.app_version,
     description=(
-        "Backend API for the Quantheonix "
-        "AI Chatbot platform."
+        "Backend API for the Quantheonix AI Chatbot platform."
     ),
-    docs_url="/docs",
-    redoc_url="/redoc",
-    openapi_url="/openapi.json",
+    docs_url="/docs" if settings.debug else None,
+    redoc_url="/redoc" if settings.debug else None,
+    openapi_url="/openapi.json" if settings.debug else None,
     lifespan=lifespan,
 )
 
