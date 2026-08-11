@@ -29,3 +29,10 @@ Thumbs.db
 
 # Logs
 *.log
+
+.pytest_cache/
+*.tgz
+
+# Docker
+.env.docker
+.env.*

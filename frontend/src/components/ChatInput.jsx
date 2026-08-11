@@ -31,7 +31,7 @@ function ChatInput({
           onChange={onInputChange}
           onKeyDown={onKeyDown}
           placeholder="Type your message..."
-          maxLength={2000}
+          maxLength={10000}
           rows={1}
           disabled={isDisabled}
           autoComplete="off"
