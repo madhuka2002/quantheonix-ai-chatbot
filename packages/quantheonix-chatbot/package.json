@@ -1,7 +1,7 @@
 {
   "name": "@quantheonix/chatbot",
   "version": "0.1.0",
-  "description": "Embeddable React AI chatbot widget with streaming and Markdown support.",
+  "description": "Embeddable React AI chatbot widget with streaming responses, authentication, Markdown rendering, and conversation support.",
   "type": "module",
   "main": "./dist/quantheonix-chatbot.js",
   "module": "./dist/quantheonix-chatbot.js",
@@ -22,6 +22,17 @@
     "lint": "eslint .",
     "preview": "vite preview"
   },
+  "keywords": [
+    "react",
+    "chatbot",
+    "ai",
+    "ai-chatbot",
+    "chat-widget",
+    "llm",
+    "streaming",
+    "gemini",
+    "quantheonix"
+  ],
   "peerDependencies": {
     "react": ">=18",
     "react-dom": ">=18"
@@ -42,5 +53,17 @@
     "rolldown": "latest",
     "vite": "^8.2.0"
   },
-  "license": "MIT"
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/madhuka2002/quantheonix-ai-chatbot.git",
+    "directory": "packages/quantheonix-chatbot"
+  },
+  "bugs": {
+    "url": "https://github.com/madhuka2002/quantheonix-ai-chatbot/issues"
+  },
+  "homepage": "https://github.com/madhuka2002/quantheonix-ai-chatbot#readme",
+  "publishConfig": {
+    "access": "public"
+  }
 }

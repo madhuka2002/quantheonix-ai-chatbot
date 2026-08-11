@@ -33,6 +33,9 @@ Thumbs.db
 .pytest_cache/
 *.tgz
 
-# Docker
 .env.docker
 .env.*
+
+# Safe environment templates
+!.env.example
+!.env.docker.example
