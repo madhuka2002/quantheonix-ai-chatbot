@@ -17,6 +17,13 @@ jobs:
     name: Backend Tests
     runs-on: ubuntu-latest
 
+    env:
+      JWT_SECRET_KEY: "ci_test_jwt_secret_key_123456789012345678901234567890"
+      GEMINI_API_KEY: "ci_test_gemini_key"
+      DATABASE_URL: "postgresql+asyncpg://ci_user:ci_password@localhost:5432/quantheonix_ci"
+      ENVIRONMENT: "testing"
+      DEBUG: "false"
+
     defaults:
       run:
         working-directory: backend
@@ -38,7 +45,7 @@ jobs:
           pip install -r requirements.txt
 
       - name: Run backend tests
-        run: pytest
+        run: pytest -v
 
   npm-package:
     name: NPM Package
