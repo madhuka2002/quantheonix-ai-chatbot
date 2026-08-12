@@ -42,53 +42,14 @@ jobs:
           python -m pip install --upgrade pip
           pip install -r requirements.txt
 
-      # The backend uses pydantic-settings and expects a .env file.
-      # These are CI-only placeholder values.
-      # No real API keys or production secrets are used here.
-      - name: Create CI environment
-        run: |
-          cat > .env <<'EOF'
-          JWT_SECRET_KEY=ci_test_jwt_secret_key_123456789012345678901234567890
-          JWT_ALGORITHM=HS256
-          ACCESS_TOKEN_EXPIRE_MINUTES=30
-          REFRESH_TOKEN_EXPIRE_DAYS=7
-
-          GEMINI_API_KEY=ci_test_gemini_key
-          GEMINI_MODEL=gemini-flash-latest
-          GEMINI_TEMPERATURE=0.7
-
-          DATABASE_URL=postgresql+asyncpg://ci_user:ci_password@localhost:5432/quantheonix_ci
-
-          CORS_ORIGINS=["http://localhost:5173"]
-
-          DEBUG=false
-          API_V1_PREFIX=/api/v1
-
-          RATE_LIMIT_ENABLED=true
-          RATE_LIMIT_LOGIN_REQUESTS=10
-          RATE_LIMIT_REGISTER_REQUESTS=5
-          RATE_LIMIT_REFRESH_REQUESTS=30
-          RATE_LIMIT_CHAT_REQUESTS=20
-          RATE_LIMIT_WINDOW_SECONDS=60
-          EOF
-
-      - name: Verify CI configuration
-        run: |
-          python -c "from app.core.config import settings; print('JWT:', bool(settings.jwt_secret_key)); print('Gemini:', bool(settings.gemini_api_key)); print('DB:', bool(settings.database_url))"
-
       - name: Run backend tests
-        run: |
-          export JWT_SECRET_KEY="ci_test_jwt_secret_key_123456789012345678901234567890"
-          export GEMINI_API_KEY="ci_test_gemini_key"
-          export DATABASE_URL="postgresql+asyncpg://ci_user:ci_password@localhost:5432/quantheonix_ci"
-          export ENVIRONMENT="testing"
-          export DEBUG="false"
-
-          python -c "import os; print('JWT:', bool(os.getenv('JWT_SECRET_KEY'))); print('Gemini:', bool(os.getenv('GEMINI_API_KEY'))); print('DB:', bool(os.getenv('DATABASE_URL')))"
-
-          python -c "from app.core.config import settings; print('Settings JWT:', bool(settings.jwt_secret_key)); print('Settings Gemini:', bool(settings.gemini_api_key)); print('Settings DB:', bool(settings.database_url))"
-
-          python -m pytest -v
+        env:
+          JWT_SECRET_KEY: "ci_test_jwt_secret_key_123456789012345678901234567890"
+          GEMINI_API_KEY: "ci_test_gemini_key"
+          DATABASE_URL: "postgresql+asyncpg://ci_user:ci_password@localhost:5432/quantheonix_ci"
+          ENVIRONMENT: "testing"
+          DEBUG: "false"
+        run: python -m pytest -v
 
 
   # ============================================================
