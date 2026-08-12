@@ -77,7 +77,18 @@ jobs:
           python -c "from app.core.config import settings; print('JWT:', bool(settings.jwt_secret_key)); print('Gemini:', bool(settings.gemini_api_key)); print('DB:', bool(settings.database_url))"
 
       - name: Run backend tests
-        run: pytest -v
+        run: |
+          export JWT_SECRET_KEY="ci_test_jwt_secret_key_123456789012345678901234567890"
+          export GEMINI_API_KEY="ci_test_gemini_key"
+          export DATABASE_URL="postgresql+asyncpg://ci_user:ci_password@localhost:5432/quantheonix_ci"
+          export ENVIRONMENT="testing"
+          export DEBUG="false"
+
+          python -c "import os; print('JWT:', bool(os.getenv('JWT_SECRET_KEY'))); print('Gemini:', bool(os.getenv('GEMINI_API_KEY'))); print('DB:', bool(os.getenv('DATABASE_URL')))"
+
+          python -c "from app.core.config import settings; print('Settings JWT:', bool(settings.jwt_secret_key)); print('Settings Gemini:', bool(settings.gemini_api_key)); print('Settings DB:', bool(settings.database_url))"
+
+          python -m pytest -v
 
 
   # ============================================================
