@@ -4,9 +4,11 @@ on:
   push:
     branches:
       - master
+
   pull_request:
     branches:
       - master
+
   workflow_dispatch:
 
 permissions:
@@ -44,8 +46,15 @@ jobs:
           python -m pip install --upgrade pip
           pip install -r requirements.txt
 
+      - name: Verify backend test environment
+        run: |
+          python -c "import os; print('JWT_SECRET_KEY:', bool(os.getenv('JWT_SECRET_KEY')))"
+          python -c "import os; print('GEMINI_API_KEY:', bool(os.getenv('GEMINI_API_KEY')))"
+          python -c "import os; print('DATABASE_URL:', bool(os.getenv('DATABASE_URL')))"
+
       - name: Run backend tests
         run: pytest -v
+
 
   npm-package:
     name: NPM Package
@@ -78,6 +87,7 @@ jobs:
       - name: Validate npm package
         run: npm pack --dry-run
 
+
   docker-validation:
     name: Docker Build
     runs-on: ubuntu-latest
@@ -97,4 +107,6 @@ jobs:
           GEMINI_API_KEY: ci_placeholder_key
           JWT_SECRET_KEY: ci_only_jwt_secret_key_not_for_production
           CORS_ORIGINS: '["http://localhost:5173"]'
-        run: docker compose -f compose.selfhosted.yaml config
+        run: |
+          docker compose -f compose.selfhosted.yaml config >/dev/null
+          echo "Compose configuration valid"
