@@ -4,8 +4,8 @@ services:
     container_name: quantheonix-postgres
 
     environment:
-      POSTGRES_DB: quantheonix_chatbot
-      POSTGRES_USER: quantheonix_user
+      POSTGRES_DB: ${POSTGRES_DB:-quantheonix_chatbot}
+      POSTGRES_USER: ${POSTGRES_USER:-quantheonix_user}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
 
     volumes:
@@ -15,7 +15,7 @@ services:
       test:
         [
           "CMD-SHELL",
-          "pg_isready -U quantheonix_user -d quantheonix_chatbot"
+          "pg_isready -U ${POSTGRES_USER:-quantheonix_user} -d ${POSTGRES_DB:-quantheonix_chatbot}"
         ]
       interval: 10s
       timeout: 5s
@@ -43,7 +43,7 @@ services:
       GEMINI_MODEL: ${GEMINI_MODEL:-gemini-flash-latest}
       GEMINI_TEMPERATURE: ${GEMINI_TEMPERATURE:-0.7}
 
-      DATABASE_URL: postgresql+asyncpg://quantheonix_user:${POSTGRES_PASSWORD}@postgres:5432/quantheonix_chatbot
+      DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER:-quantheonix_user}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-quantheonix_chatbot}
 
       JWT_SECRET_KEY: ${JWT_SECRET_KEY}
       JWT_ALGORITHM: HS256
