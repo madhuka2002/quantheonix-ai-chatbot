@@ -22,6 +22,33 @@ jobs:
     name: Backend Tests
     runs-on: ubuntu-latest
 
+    services:
+      postgres:
+        image: postgres:17-alpine
+        env:
+          POSTGRES_DB: quantheonix_ci
+          POSTGRES_USER: quantheonix_ci
+          POSTGRES_PASSWORD: ci_only_password
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd="pg_isready -U quantheonix_ci -d quantheonix_ci"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=10
+
+    env:
+      JWT_SECRET_KEY: "ci_test_jwt_secret_key_123456789012345678901234567890"
+      GEMINI_API_KEY: "ci_test_gemini_key"
+      DATABASE_URL: "postgresql+asyncpg://quantheonix_ci:ci_only_password@localhost:5432/quantheonix_ci"
+      ENVIRONMENT: "testing"
+      DEBUG: "false"
+      JWT_ALGORITHM: "HS256"
+      ACCESS_TOKEN_EXPIRE_MINUTES: "30"
+      REFRESH_TOKEN_EXPIRE_DAYS: "7"
+      CORS_ORIGINS: '["http://localhost:5173"]'
+      RATE_LIMIT_ENABLED: "false"
+
     defaults:
       run:
         working-directory: backend
@@ -42,15 +69,14 @@ jobs:
           python -m pip install --upgrade pip
           pip install -r requirements.txt
 
-      - name: Run backend tests
-        env:
-          JWT_SECRET_KEY: "ci_test_jwt_secret_key_123456789012345678901234567890"
-          GEMINI_API_KEY: "ci_test_gemini_key"
-          DATABASE_URL: "postgresql+asyncpg://ci_user:ci_password@localhost:5432/quantheonix_ci"
-          ENVIRONMENT: "testing"
-          DEBUG: "false"
-        run: python -m pytest -v
+      - name: Run database migrations
+        run: alembic upgrade head
 
+      - name: Verify database revision
+        run: alembic current
+
+      - name: Run backend tests
+        run: python -m pytest -v
 
   # ============================================================
   # NPM Package Validation
