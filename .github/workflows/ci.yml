@@ -1,0 +1,93 @@
+name: CI
+
+on:
+  push:
+    branches:
+      - master
+  pull_request:
+    branches:
+      - master
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  backend-tests:
+    name: Backend Tests
+    runs-on: ubuntu-latest
+
+    defaults:
+      run:
+        working-directory: backend
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v6
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.14"
+          cache: "pip"
+          cache-dependency-path: backend/requirements.txt
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Run backend tests
+        run: pytest
+
+  npm-package:
+    name: NPM Package
+    runs-on: ubuntu-latest
+
+    defaults:
+      run:
+        working-directory: packages/quantheonix-chatbot
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v6
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: "24"
+          cache: "npm"
+          cache-dependency-path: packages/quantheonix-chatbot/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Lint package
+        run: npm run lint
+
+      - name: Build package
+        run: npm run build
+
+      - name: Validate npm package
+        run: npm pack --dry-run
+
+  docker-validation:
+    name: Docker Build
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v6
+
+      - name: Validate backend Docker image
+        run: docker build -t quantheonix-backend-ci ./backend
+
+      - name: Validate self-hosted Compose
+        env:
+          POSTGRES_DB: quantheonix_ci
+          POSTGRES_USER: quantheonix_ci
+          POSTGRES_PASSWORD: ci_only_password
+          GEMINI_API_KEY: ci_placeholder_key
+          JWT_SECRET_KEY: ci_only_jwt_secret_key_not_for_production
+          CORS_ORIGINS: '["http://localhost:5173"]'
+        run: docker compose -f compose.selfhosted.yaml config
