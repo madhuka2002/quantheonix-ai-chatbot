@@ -35,7 +35,9 @@ Thumbs.db
 
 .env.docker
 .env.*
+.env.selfhosted
 
 # Safe environment templates
 !.env.example
 !.env.docker.example
+!.env.selfhosted.example
