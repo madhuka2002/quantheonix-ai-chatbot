@@ -389,3 +389,247 @@ async def test_user_cannot_access_another_users_conversation(
     )
 
     assert response.status_code == 404
+
+
+@pytest.mark.asyncio
+async def test_rename_conversation(
+    client,
+    monkeypatch,
+):
+    _, access_token = (
+        await create_authenticated_user(client)
+    )
+
+    def fake_generate_reply(chat, message):
+        return "Mock response."
+
+    monkeypatch.setattr(
+        "app.services.database_chat_service.generate_reply",
+        fake_generate_reply,
+    )
+
+    create_response = await client.post(
+        "/api/v1/chat",
+        json={
+            "message": "Original conversation title",
+        },
+        headers=auth_headers(access_token),
+    )
+
+    assert create_response.status_code == 200
+
+    conversation_id = (
+        create_response.json()["conversation_id"]
+    )
+
+    response = await client.patch(
+        f"/api/v1/conversations/{conversation_id}",
+        json={
+            "title": "Renamed Conversation",
+        },
+        headers=auth_headers(access_token),
+    )
+
+    assert response.status_code == 200
+
+    data = response.json()
+
+    assert data["id"] == conversation_id
+    assert data["title"] == "Renamed Conversation"
+
+    get_response = await client.get(
+        f"/api/v1/conversations/{conversation_id}",
+        headers=auth_headers(access_token),
+    )
+
+    assert get_response.status_code == 200
+    assert (
+        get_response.json()["title"]
+        == "Renamed Conversation"
+    )
+
+
+@pytest.mark.asyncio
+async def test_rename_rejects_empty_title(
+    client,
+    monkeypatch,
+):
+    _, access_token = (
+        await create_authenticated_user(client)
+    )
+
+    def fake_generate_reply(chat, message):
+        return "Mock response."
+
+    monkeypatch.setattr(
+        "app.services.database_chat_service.generate_reply",
+        fake_generate_reply,
+    )
+
+    create_response = await client.post(
+        "/api/v1/chat",
+        json={
+            "message": "Rename validation test",
+        },
+        headers=auth_headers(access_token),
+    )
+
+    assert create_response.status_code == 200
+
+    conversation_id = (
+        create_response.json()["conversation_id"]
+    )
+
+    response = await client.patch(
+        f"/api/v1/conversations/{conversation_id}",
+        json={
+            "title": "   ",
+        },
+        headers=auth_headers(access_token),
+    )
+
+    assert response.status_code == 422
+
+
+@pytest.mark.asyncio
+async def test_user_cannot_rename_another_users_conversation(
+    client,
+    monkeypatch,
+):
+    _, first_token = (
+        await create_authenticated_user(client)
+    )
+
+    _, second_token = (
+        await create_authenticated_user(client)
+    )
+
+    def fake_generate_reply(chat, message):
+        return "Private response."
+
+    monkeypatch.setattr(
+        "app.services.database_chat_service.generate_reply",
+        fake_generate_reply,
+    )
+
+    create_response = await client.post(
+        "/api/v1/chat",
+        json={
+            "message": "Private rename test",
+        },
+        headers=auth_headers(first_token),
+    )
+
+    assert create_response.status_code == 200
+
+    conversation_id = (
+        create_response.json()["conversation_id"]
+    )
+
+    response = await client.patch(
+        f"/api/v1/conversations/{conversation_id}",
+        json={
+            "title": "Unauthorized Rename",
+        },
+        headers=auth_headers(second_token),
+    )
+
+    assert response.status_code == 404
+
+
+@pytest.mark.asyncio
+async def test_delete_conversation(
+    client,
+    monkeypatch,
+):
+    _, access_token = (
+        await create_authenticated_user(client)
+    )
+
+    def fake_generate_reply(chat, message):
+        return "Delete test response."
+
+    monkeypatch.setattr(
+        "app.services.database_chat_service.generate_reply",
+        fake_generate_reply,
+    )
+
+    create_response = await client.post(
+        "/api/v1/chat",
+        json={
+            "message": "Delete this conversation",
+        },
+        headers=auth_headers(access_token),
+    )
+
+    assert create_response.status_code == 200
+
+    conversation_id = (
+        create_response.json()["conversation_id"]
+    )
+
+    response = await client.delete(
+        f"/api/v1/conversations/{conversation_id}",
+        headers=auth_headers(access_token),
+    )
+
+    assert response.status_code == 200
+
+    get_response = await client.get(
+        f"/api/v1/conversations/{conversation_id}",
+        headers=auth_headers(access_token),
+    )
+
+    assert get_response.status_code == 404
+
+
+@pytest.mark.asyncio
+async def test_user_cannot_delete_another_users_conversation(
+    client,
+    monkeypatch,
+):
+    _, first_token = (
+        await create_authenticated_user(client)
+    )
+
+    _, second_token = (
+        await create_authenticated_user(client)
+    )
+
+    def fake_generate_reply(chat, message):
+        return "Private delete response."
+
+    monkeypatch.setattr(
+        "app.services.database_chat_service.generate_reply",
+        fake_generate_reply,
+    )
+
+    create_response = await client.post(
+        "/api/v1/chat",
+        json={
+            "message": "Private delete test",
+        },
+        headers=auth_headers(first_token),
+    )
+
+    assert create_response.status_code == 200
+
+    conversation_id = (
+        create_response.json()["conversation_id"]
+    )
+
+    response = await client.delete(
+        f"/api/v1/conversations/{conversation_id}",
+        headers=auth_headers(second_token),
+    )
+
+    assert response.status_code == 404
+
+    # Make sure the failed delete did not remove
+    # the first user's conversation.
+    owner_response = await client.get(
+        f"/api/v1/conversations/{conversation_id}",
+        headers=auth_headers(first_token),
+    )
+
+    assert owner_response.status_code == 200
