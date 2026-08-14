@@ -203,32 +203,6 @@ async def list_conversations(
         limit=result["limit"],
         offset=result["offset"],
     )
-async def list_conversations(
-    service: DatabaseChatServiceDependency,
-    current_user: CurrentUser,
-    limit: Annotated[
-        int,
-        Query(
-            ge=1,
-            le=100,
-            description="Maximum conversations to return.",
-        ),
-    ] = 20,
-    offset: Annotated[
-        int,
-        Query(
-            ge=0,
-            description="Number of conversations to skip.",
-        ),
-    ] = 0,
-) -> ConversationListResponse:
-    result = await service.list_conversations(
-        user_id=current_user.id,
-        limit=limit,
-        offset=offset,
-    )
-
-    return ConversationListResponse(**result)
 
 
 @router.get(
