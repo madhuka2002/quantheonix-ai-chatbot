@@ -73,5 +73,15 @@ class InMemoryRateLimiter:
 
             return True, 0
 
+    async def reset(self) -> None:
+        """
+        Clear all stored rate-limit state.
+
+        Primarily used to isolate tests.
+        """
+
+        async with self._lock:
+            self._requests.clear()
+
 
 rate_limiter = InMemoryRateLimiter()
