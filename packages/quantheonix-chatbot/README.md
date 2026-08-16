@@ -276,27 +276,55 @@ async function getAccessToken({
 } = {}) {
   if (!forceRefresh) {
     return localStorage.getItem(
-      "access_token",
+      "quantheonix_access_token",
     );
+  }
+
+  const refreshToken =
+    localStorage.getItem(
+      "quantheonix_refresh_token",
+    );
+
+  if (!refreshToken) {
+    return null;
   }
 
   const response = await fetch(
     "http://localhost:8000/api/v1/auth/refresh",
     {
       method: "POST",
-      credentials: "include",
+      headers: {
+        Accept: "application/json",
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        refresh_token: refreshToken,
+      }),
     },
   );
 
   if (!response.ok) {
+    localStorage.removeItem(
+      "quantheonix_access_token",
+    );
+
+    localStorage.removeItem(
+      "quantheonix_refresh_token",
+    );
+
     return null;
   }
 
   const data = await response.json();
 
   localStorage.setItem(
-    "access_token",
+    "quantheonix_access_token",
     data.access_token,
+  );
+
+  localStorage.setItem(
+    "quantheonix_refresh_token",
+    data.refresh_token,
   );
 
   return data.access_token;

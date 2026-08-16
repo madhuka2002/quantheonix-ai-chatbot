@@ -1,6 +1,6 @@
 {
   "name": "@quantheonix/chatbot",
-  "version": "0.1.0",
+  "version": "1.0.0",
   "description": "Embeddable React AI chatbot widget with streaming responses, authentication, Markdown rendering, and conversation support.",
   "type": "module",
   "main": "./dist/quantheonix-chatbot.js",

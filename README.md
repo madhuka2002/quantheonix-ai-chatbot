@@ -25,7 +25,7 @@ The project provides:
 Current release:
 
 ```text
-@quantheonix/chatbot v0.1.0
+@quantheonix/chatbot v1.0.0
 ```
 
 The frontend widget is packaged separately from the backend.
