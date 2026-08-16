@@ -12,7 +12,7 @@ from pydantic_settings import (
 
 class Settings(BaseSettings):
     app_name: str = "Quantheonix AI Chatbot API"
-    app_version: str = "0.3.0"
+    app_version: str = "1.0.0"
     debug: bool = True
 
     jwt_secret_key: str

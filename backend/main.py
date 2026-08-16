@@ -129,11 +129,15 @@ app.include_router(
     tags=["Root"],
     summary="API information",
 )
-async def root() -> dict[str, str]:
+async def root() -> dict[str, str | None]:
     return {
         "name": settings.app_name,
         "version": settings.app_version,
-        "documentation": "/docs",
+        "documentation": (
+            "/docs"
+            if settings.debug
+            else None
+        ),
         "health": (
             f"{settings.api_v1_prefix}/health"
         ),
