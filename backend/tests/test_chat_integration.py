@@ -1205,3 +1205,78 @@ async def test_stream_failure_rolls_back_conversation(
     )
 
     assert get_response.status_code == 404
+
+
+@pytest.mark.asyncio
+async def test_stream_chat_handles_temporary_ai_provider_failure(
+    client,
+    monkeypatch,
+):
+    _, access_token = (
+        await create_authenticated_user(client)
+    )
+
+    async def fake_stream_reply(*args, **kwargs):
+        from google.genai import errors
+
+        raise errors.ServerError(
+            503,
+            {
+                "error": {
+                    "code": 503,
+                    "message": (
+                        "This model is currently "
+                        "experiencing high demand."
+                    ),
+                    "status": "UNAVAILABLE",
+                }
+            },
+            None,
+        )
+
+        yield  # pragma: no cover
+
+    monkeypatch.setattr(
+        "app.services.database_chat_service.stream_reply",
+        fake_stream_reply,
+    )
+
+    response = await client.post(
+        "/api/v1/chat/stream",
+        json={
+            "message": "Trigger temporary AI failure",
+        },
+        headers=auth_headers(access_token),
+    )
+
+    assert response.status_code == 200
+
+    lines = [
+        line
+        for line in response.text.splitlines()
+        if line.strip()
+    ]
+
+    events = [
+        json.loads(line)
+        for line in lines
+    ]
+
+    assert events[0]["type"] == "start"
+
+    error_event = events[-1]
+
+    assert error_event["type"] == "error"
+
+    assert (
+        error_event["code"]
+        == "ai_service_temporarily_unavailable"
+    )
+
+    assert (
+        error_event["message"]
+        == (
+            "The AI service is temporarily busy. "
+            "Please try again shortly."
+        )
+    )

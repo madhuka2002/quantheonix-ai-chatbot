@@ -1,9 +1,12 @@
+import asyncio
+
 from collections.abc import (
     AsyncIterator,
     Sequence,
 )
 
 from google import genai
+from google.genai import errors
 from google.genai import types
 
 from config import (
@@ -12,8 +15,8 @@ from config import (
     GEMINI_TEMPERATURE,
     validate_config,
 )
-from prompts import SYSTEM_INSTRUCTION
 
+from prompts import SYSTEM_INSTRUCTION
 
 
 def create_client() -> genai.Client:
@@ -42,10 +45,18 @@ def create_chat(
     return client.chats.create(
         model=GEMINI_MODEL,
         config=types.GenerateContentConfig(
-            system_instruction=SYSTEM_INSTRUCTION,
-            temperature=GEMINI_TEMPERATURE,
+            system_instruction=(
+                SYSTEM_INSTRUCTION
+            ),
+            temperature=(
+                GEMINI_TEMPERATURE
+            ),
         ),
-        history=list(history) if history else None,
+        history=(
+            list(history)
+            if history
+            else None
+        ),
     )
 
 
@@ -64,8 +75,10 @@ def create_history_content(
 
     if role == "assistant":
         gemini_role = "model"
+
     elif role == "user":
         gemini_role = "user"
+
     else:
         raise ValueError(
             f"Unsupported conversation role: {role}"
@@ -100,6 +113,7 @@ def generate_reply(
 
     return response.text
 
+
 async def stream_reply(
     client,
     *,
@@ -110,8 +124,12 @@ async def stream_reply(
     """
     Stream Gemini text chunks for one user message.
 
-    The same system instruction and generation settings used
-    by the standard chat flow are applied to streaming.
+    Temporary Gemini failures are retried only when no
+    response chunk has already been sent to the client.
+
+    Retrying after partial output could duplicate text in
+    the frontend, so partial streams are never restarted
+    automatically.
     """
 
     contents = [
@@ -122,55 +140,77 @@ async def stream_reply(
         ),
     ]
 
-    response_stream = (
-        await client.aio.models.generate_content_stream(
-            model=model_name,
-            contents=contents,
-            config=types.GenerateContentConfig(
-                system_instruction=(
-                    SYSTEM_INSTRUCTION
-                ),
-                temperature=(
-                    GEMINI_TEMPERATURE
-                ),
-            ),
-        )
-    )
+    max_attempts = 3
 
-    async for chunk in response_stream:
-        chunk_text = getattr(
-            chunk,
-            "text",
-            None,
-        )
+    retryable_codes = {
+        429,
+        500,
+        502,
+        503,
+        504,
+    }
 
-        if chunk_text:
-            yield chunk_text
-    """
-    Stream Gemini text chunks for one user message.
-    """
+    for attempt in range(
+        1,
+        max_attempts + 1,
+    ):
+        chunk_sent = False
 
-    contents = [
-        *history,
-        create_history_content(
-            role="user",
-            content=message,
-        ),
-    ]
+        try:
+            response_stream = (
+                await client.aio.models
+                .generate_content_stream(
+                    model=model_name,
+                    contents=contents,
+                    config=(
+                        types.GenerateContentConfig(
+                            system_instruction=(
+                                SYSTEM_INSTRUCTION
+                            ),
+                            temperature=(
+                                GEMINI_TEMPERATURE
+                            ),
+                        )
+                    ),
+                )
+            )
 
-    response_stream = (
-        await client.aio.models.generate_content_stream(
-            model=model_name,
-            contents=contents,
-        )
-    )
+            async for chunk in response_stream:
+                chunk_text = getattr(
+                    chunk,
+                    "text",
+                    None,
+                )
 
-    async for chunk in response_stream:
-        chunk_text = getattr(
-            chunk,
-            "text",
-            None,
-        )
+                if not chunk_text:
+                    continue
 
-        if chunk_text:
-            yield chunk_text
+                chunk_sent = True
+
+                yield chunk_text
+
+            return
+
+        except errors.APIError as exc:
+            error_code = getattr(
+                exc,
+                "code",
+                None,
+            )
+
+            should_retry = (
+                error_code in retryable_codes
+                and not chunk_sent
+                and attempt < max_attempts
+            )
+
+            if not should_retry:
+                raise
+
+            delay_seconds = (
+                2 ** (attempt - 1)
+            )
+
+            await asyncio.sleep(
+                delay_seconds
+            )

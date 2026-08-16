@@ -1,11 +1,11 @@
 import asyncio
 import json
 import logging
-
 from collections.abc import AsyncIterator
 from uuid import UUID
 
 from anyio import to_thread
+from google.genai import errors
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from ai_service import (
@@ -428,6 +428,61 @@ class DatabaseChatService:
                 }
             )
 
+        except errors.APIError as exc:
+            await self._session.rollback()
+
+            provider_status = getattr(
+                exc,
+                "code",
+                None,
+            )
+
+            if self._is_temporary_ai_provider_error(
+                exc
+            ):
+                logger.warning(
+                    "Temporary AI provider failure | "
+                    "user_id=%s | conversation_id=%s | "
+                    "provider_status=%s",
+                    user_id,
+                    (
+                        str(conversation.id)
+                        if conversation is not None
+                        else conversation_id
+                    ),
+                    provider_status,
+                )
+
+                yield self._encode_stream_event(
+                    self._temporary_ai_error_event()
+                )
+
+                return
+
+            logger.exception(
+                "AI provider request failed | "
+                "user_id=%s | conversation_id=%s | "
+                "provider_status=%s",
+                user_id,
+                (
+                    str(conversation.id)
+                    if conversation is not None
+                    else conversation_id
+                ),
+                provider_status,
+            )
+
+            yield self._encode_stream_event(
+                {
+                    "type": "error",
+                    "code": "chat_generation_failed",
+                    "message": (
+                        "The chatbot could not generate "
+                        "a response at this time."
+                    ),
+                }
+            )
+
         except Exception:
             await self._session.rollback()
 
@@ -575,6 +630,54 @@ class DatabaseChatService:
                 }
             )
 
+        except errors.APIError as exc:
+            await self._session.rollback()
+
+            provider_status = getattr(
+                exc,
+                "code",
+                None,
+            )
+
+            if self._is_temporary_ai_provider_error(
+                exc
+            ):
+                logger.warning(
+                    "Temporary AI provider failure during "
+                    "regeneration | user_id=%s | "
+                    "conversation_id=%s | "
+                    "provider_status=%s",
+                    user_id,
+                    conversation_id,
+                    provider_status,
+                )
+
+                yield self._encode_stream_event(
+                    self._temporary_ai_error_event()
+                )
+
+                return
+
+            logger.exception(
+                "AI provider regeneration failed | "
+                "user_id=%s | conversation_id=%s | "
+                "provider_status=%s",
+                user_id,
+                conversation_id,
+                provider_status,
+            )
+
+            yield self._encode_stream_event(
+                {
+                    "type": "error",
+                    "code": "chat_regeneration_failed",
+                    "message": (
+                        "The response could not be "
+                        "regenerated."
+                    ),
+                }
+            )
+
         except Exception:
             await self._session.rollback()
 
@@ -596,6 +699,44 @@ class DatabaseChatService:
                 }
             )
 
+
+    @staticmethod
+    def _is_temporary_ai_provider_error(
+        exc: errors.APIError,
+    ) -> bool:
+        """
+        Return True for temporary/retryable AI provider errors.
+        """
+
+        return getattr(
+            exc,
+            "code",
+            None,
+        ) in {
+            429,
+            500,
+            502,
+            503,
+            504,
+        }
+
+    @staticmethod
+    def _temporary_ai_error_event() -> dict:
+        """
+        Build the safe client-facing event for temporary
+        provider outages or throttling.
+        """
+
+        return {
+            "type": "error",
+            "code": (
+                "ai_service_temporarily_unavailable"
+            ),
+            "message": (
+                "The AI service is temporarily busy. "
+                "Please try again shortly."
+            ),
+        }
 
     @staticmethod
     def _parse_conversation_id(
@@ -837,6 +978,58 @@ class DatabaseChatService:
                     "type": "error",
                     "code": exc.code,
                     "message": exc.message,
+                }
+            )
+
+        except errors.APIError as exc:
+            await self._session.rollback()
+
+            provider_status = getattr(
+                exc,
+                "code",
+                None,
+            )
+
+            if self._is_temporary_ai_provider_error(
+                exc
+            ):
+                logger.warning(
+                    "Temporary AI provider failure during "
+                    "edit/regenerate | user_id=%s | "
+                    "conversation_id=%s | message_id=%s | "
+                    "provider_status=%s",
+                    user_id,
+                    conversation_id,
+                    message_id,
+                    provider_status,
+                )
+
+                yield self._encode_stream_event(
+                    self._temporary_ai_error_event()
+                )
+
+                return
+
+            logger.exception(
+                "AI provider edit/regenerate failed | "
+                "user_id=%s | conversation_id=%s | "
+                "message_id=%s | provider_status=%s",
+                user_id,
+                conversation_id,
+                message_id,
+                provider_status,
+            )
+
+            yield self._encode_stream_event(
+                {
+                    "type": "error",
+                    "code": (
+                        "message_edit_failed"
+                    ),
+                    "message": (
+                        "The message could not be "
+                        "edited and regenerated."
+                    ),
                 }
             )
 
