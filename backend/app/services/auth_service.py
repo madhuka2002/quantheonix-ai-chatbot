@@ -22,6 +22,10 @@ from app.repositories.user_repository import (
 )
 from app.schemas.user import UserCreate
 
+from app.repositories.assistant_repository import (
+    AssistantRepository,
+)
+
 @dataclass(slots=True)
 class LoginResult:
     access_token: str
@@ -34,7 +38,14 @@ class AuthService:
         session: AsyncSession,
     ) -> None:
         self._session = session
-        self._user_repository = UserRepository(session)
+
+        self._user_repository = UserRepository(
+            session
+        )
+
+        self._assistant_repository = (
+            AssistantRepository(session)
+        )
 
     async def register_user(
         self,
@@ -68,7 +79,13 @@ class AuthService:
                 password_hash=hashed_password,
             )
 
+            await self._assistant_repository.create_default_for_user(
+                user_id=user.id,
+            )
+
             await self._session.commit()
+
+            await self._session.refresh(user)
 
             return user
 

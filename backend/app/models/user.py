@@ -17,8 +17,8 @@ from app.db.base import (
     UUIDPrimaryKeyMixin,
 )
 
-
 if TYPE_CHECKING:
+    from app.models.assistant import Assistant
     from app.models.conversation import (
         Conversation,
     )
@@ -71,6 +71,13 @@ class User(
 
     conversations: Mapped[
         list["Conversation"]
+    ] = relationship(
+        back_populates="user",
+        cascade="all, delete-orphan",
+    )
+
+    assistants: Mapped[
+        list["Assistant"]
     ] = relationship(
         back_populates="user",
         cascade="all, delete-orphan",

@@ -22,7 +22,10 @@ from app.core.exceptions import (
     ConversationNotFoundError,
 )
 from app.models.message import MessageRole
-from app.repositories import ConversationRepository
+from app.repositories import (
+    AssistantRepository,
+    ConversationRepository,
+)
 
 
 logger = logging.getLogger(__name__)
@@ -45,7 +48,38 @@ class DatabaseChatService:
         self._repository = ConversationRepository(
             session,
         )
+
+        self._assistant_repository = (
+            AssistantRepository(
+                session,
+            )
+        )
+
         self._client = create_client()
+
+    async def _get_default_assistant(
+        self,
+        *,
+        user_id: UUID,
+    ):
+        """
+        Resolve the active default assistant for a user.
+
+        Phase 1 chat requests do not provide an assistant ID,
+        so they are routed through the user's default assistant.
+        """
+
+        assistant = (
+            await self._assistant_repository
+            .get_default_for_user(
+                user_id=user_id,
+            )
+        )
+
+        if assistant is None:
+            raise ChatGenerationError()
+
+        return assistant
 
     async def send_message(
         self,
@@ -60,13 +94,23 @@ class DatabaseChatService:
 
         try:
             if conversation_id is None:
+                assistant = (
+                    await self._get_default_assistant(
+                        user_id=user_id,
+                    )
+                )
+
                 conversation = (
                     await self._repository
                     .create_conversation(
                         user_id=user_id,
-                        model_name=settings.gemini_model,
+                        assistant_id=assistant.id,
+                        model_name=assistant.model_name,
                         title=self._create_title(
                             message,
+                        ),
+                        system_prompt=(
+                            assistant.system_prompt
                         ),
                     )
                 )
@@ -314,13 +358,23 @@ class DatabaseChatService:
 
         try:
             if conversation_id is None:
+                assistant = (
+                    await self._get_default_assistant(
+                        user_id=user_id,
+                    )
+                )
+
                 conversation = (
                     await self._repository
                     .create_conversation(
                         user_id=user_id,
-                        model_name=settings.gemini_model,
+                        assistant_id=assistant.id,
+                        model_name=assistant.model_name,
                         title=self._create_title(
                             message,
+                        ),
+                        system_prompt=(
+                            assistant.system_prompt
                         ),
                     )
                 )

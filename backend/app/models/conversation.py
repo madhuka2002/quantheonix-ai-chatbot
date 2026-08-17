@@ -22,8 +22,8 @@ from app.db.base import (
     UUIDPrimaryKeyMixin,
 )
 
-
 if TYPE_CHECKING:
+    from app.models.assistant import Assistant
     from app.models.message import Message
     from app.models.user import User
 
@@ -39,6 +39,16 @@ class Conversation(
         PGUUID(as_uuid=True),
         ForeignKey(
             "users.id",
+            ondelete="CASCADE",
+        ),
+        nullable=False,
+        index=True,
+    )
+
+    assistant_id: Mapped[UUID] = mapped_column(
+        PGUUID(as_uuid=True),
+        ForeignKey(
+            "assistants.id",
             ondelete="CASCADE",
         ),
         nullable=False,
@@ -75,6 +85,10 @@ class Conversation(
     )
 
     user: Mapped["User"] = relationship(
+        back_populates="conversations",
+    )
+
+    assistant: Mapped["Assistant"] = relationship(
         back_populates="conversations",
     )
 

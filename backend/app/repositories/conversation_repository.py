@@ -28,12 +28,14 @@ class ConversationRepository:
         self,
         *,
         user_id: UUID,
+        assistant_id: UUID,
         model_name: str,
         title: str | None = None,
         system_prompt: str | None = None,
     ) -> Conversation:
         conversation = Conversation(
             user_id=user_id,
+            assistant_id=assistant_id,
             title=title,
             system_prompt=system_prompt,
             model_name=model_name,
