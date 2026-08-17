@@ -16,6 +16,11 @@ from app.schemas.auth import (
     RegistrationResponse,
     TokenResponse,
 )
+from app.schemas.assistant import (
+    AssistantCreate,
+    AssistantResponse,
+    AssistantUpdate,
+)
 
 __all__ = [
     "ConversationDetailResponse",

@@ -4,7 +4,6 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.assistant import Assistant
-
 from app.models.assistant_widget_settings import (
     AssistantWidgetSettings,
 )
@@ -14,8 +13,7 @@ class AssistantRepository:
     """
     Handles database operations for user-owned assistants.
 
-    Assistant lookups are always scoped to the owning user
-    so one user cannot access another user's assistant.
+    All assistant reads are scoped to the owning user.
     """
 
     def __init__(
@@ -24,15 +22,35 @@ class AssistantRepository:
     ) -> None:
         self._session = session
 
+    async def list_for_user(
+        self,
+        *,
+        user_id: UUID,
+    ) -> list[Assistant]:
+        statement = (
+            select(Assistant)
+            .where(
+                Assistant.user_id == user_id,
+            )
+            .order_by(
+                Assistant.is_default.desc(),
+                Assistant.created_at.asc(),
+            )
+        )
+
+        result = await self._session.execute(
+            statement,
+        )
+
+        return list(
+            result.scalars().all()
+        )
+
     async def get_default_for_user(
         self,
         *,
         user_id: UUID,
     ) -> Assistant | None:
-        """
-        Return the active default assistant owned by a user.
-        """
-
         statement = (
             select(Assistant)
             .where(
@@ -59,14 +77,9 @@ class AssistantRepository:
         assistant_id: UUID,
         user_id: UUID,
     ) -> Assistant | None:
-        """
-        Return one active assistant owned by a user.
-        """
-
         statement = select(Assistant).where(
             Assistant.id == assistant_id,
             Assistant.user_id == user_id,
-            Assistant.is_active.is_(True),
         )
 
         result = await self._session.execute(
@@ -75,18 +88,49 @@ class AssistantRepository:
 
         return result.scalar_one_or_none()
 
+    async def create(
+        self,
+        *,
+        user_id: UUID,
+        name: str,
+        display_name: str,
+        description: str | None,
+        system_prompt: str | None,
+        tone: str,
+        temperature: float,
+        model_name: str,
+        rag_enabled: bool,
+    ) -> Assistant:
+        assistant = Assistant(
+            user_id=user_id,
+            name=name,
+            display_name=display_name,
+            description=description,
+            system_prompt=system_prompt,
+            tone=tone,
+            temperature=temperature,
+            model_name=model_name,
+            rag_enabled=rag_enabled,
+            is_default=False,
+            is_active=True,
+        )
+
+        assistant.widget_settings = (
+            AssistantWidgetSettings()
+        )
+
+        self._session.add(assistant)
+
+        await self._session.flush()
+        await self._session.refresh(assistant)
+
+        return assistant
+
     async def create_default_for_user(
         self,
         *,
         user_id: UUID,
     ) -> Assistant:
-        """
-        Create the initial default assistant for a new user.
-
-        The assistant and its widget settings are flushed as part
-        of the caller's transaction. This method does not commit.
-        """
-
         assistant = Assistant(
             user_id=user_id,
             name="default-assistant",
@@ -114,3 +158,32 @@ class AssistantRepository:
         await self._session.refresh(assistant)
 
         return assistant
+
+    async def update(
+        self,
+        *,
+        assistant: Assistant,
+        values: dict,
+    ) -> Assistant:
+        for field_name, value in values.items():
+            setattr(
+                assistant,
+                field_name,
+                value,
+            )
+
+        await self._session.flush()
+        await self._session.refresh(assistant)
+
+        return assistant
+
+    async def delete(
+        self,
+        *,
+        assistant: Assistant,
+    ) -> None:
+        await self._session.delete(
+            assistant,
+        )
+
+        await self._session.flush()
