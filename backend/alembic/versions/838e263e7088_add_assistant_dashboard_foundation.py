@@ -87,12 +87,6 @@ def upgrade() -> None:
             nullable=False,
         ),
         sa.Column(
-            "is_default",
-            sa.Boolean(),
-            server_default=sa.text("false"),
-            nullable=False,
-        ),
-        sa.Column(
             "is_active",
             sa.Boolean(),
             server_default=sa.text("true"),
