@@ -14,6 +14,10 @@ from app.repositories.assistant_widget_repository import (
     AssistantWidgetRepository,
 )
 
+from app.repositories.assistant_domain_repository import (
+    AssistantDomainRepository,
+)
+
 
 __all__ = [
     "AssistantRepository",

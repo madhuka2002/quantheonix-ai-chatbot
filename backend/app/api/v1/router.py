@@ -1,6 +1,7 @@
 from fastapi import APIRouter
 
 from app.api.v1.endpoints import (
+    assistant_domains,
     assistant_widgets,
     assistants,
     chat,
@@ -28,6 +29,10 @@ api_v1_router.include_router(
 
 api_v1_router.include_router(
     assistant_widgets.router,
+)
+
+api_v1_router.include_router(
+    assistant_domains.router,
 )
 
 api_v1_router.include_router(
