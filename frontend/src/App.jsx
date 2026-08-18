@@ -10,8 +10,8 @@ import {
   useAuth,
 } from "./hooks/useAuth";
 
-import ChatApplication
-  from "./components/ChatApplication";
+import DashboardApplication
+  from "./dashboard/DashboardApplication";
 
 import LoginPage
   from "./pages/LoginPage";
@@ -70,7 +70,7 @@ function ApplicationContent() {
   }
 
 
-  return <ChatApplication />;
+  return <DashboardApplication />;
 }
 
 
