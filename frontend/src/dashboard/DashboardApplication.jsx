@@ -34,6 +34,12 @@ import "./styles/dashboard.css";
 import DomainsPage
   from "./pages/DomainsPage";
 
+import AISettingsPage
+  from "./pages/AISettingsPage";
+
+import InstallationPage
+  from "./pages/InstallationPage";
+
 
 export default function DashboardApplication() {
   const [
@@ -282,13 +288,16 @@ export default function DashboardApplication() {
       activePage === "ai-settings"
     ) {
       return (
-        <PlaceholderPage
-          eyebrow="AI Configuration"
-          title="Assistant intelligence"
-          description={
+        <AISettingsPage
+          key={
+            selectedAssistant?.id ??
+            "no-assistant"
+          }
+          assistant={
             selectedAssistant
-              ? `Configure AI behavior for ${selectedAssistant.display_name}.`
-              : "Select an assistant before configuring AI settings."
+          }
+          onAssistantUpdated={
+            loadAssistants
           }
         />
       );
@@ -299,13 +308,9 @@ export default function DashboardApplication() {
       activePage === "installation"
     ) {
       return (
-        <PlaceholderPage
-          eyebrow="Deployment"
-          title="Installation"
-          description={
+        <InstallationPage
+          assistant={
             selectedAssistant
-              ? `Install ${selectedAssistant.display_name} on your website.`
-              : "Select an assistant before generating installation instructions."
           }
         />
       );

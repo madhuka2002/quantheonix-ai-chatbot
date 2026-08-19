@@ -15,7 +15,7 @@ from ai_service import (
     generate_reply,
     stream_reply,
 )
-from app.core.config import settings
+
 from app.core.exceptions import (
     ApplicationError,
     ChatGenerationError,
@@ -81,12 +81,53 @@ class DatabaseChatService:
 
         return assistant
 
+    async def _resolve_assistant(
+        self,
+        *,
+        user_id: UUID,
+        assistant_id: str | None,
+    ):
+        """
+        Resolve the assistant for a new conversation.
+
+        If no assistant ID is supplied, use the user's
+        active default assistant.
+        """
+
+        if assistant_id is None:
+            return await self._get_default_assistant(
+                user_id=user_id,
+            )
+
+        try:
+            assistant_uuid = UUID(
+                assistant_id,
+            )
+        except (TypeError, ValueError) as exc:
+            raise ChatGenerationError() from exc
+
+        assistant = (
+            await self._assistant_repository.get_for_user(
+                assistant_id=assistant_uuid,
+                user_id=user_id,
+            )
+        )
+
+        if (
+            assistant is None
+            or not assistant.is_active
+        ):
+            raise ChatGenerationError()
+
+        return assistant
+
     async def send_message(
         self,
         *,
         user_id: UUID,
         message: str,
         conversation_id: str | None,
+        assistant_id: str | None = None,
     ) -> dict[str, str]:
         """
         Create or continue a user-owned conversation.
@@ -95,8 +136,9 @@ class DatabaseChatService:
         try:
             if conversation_id is None:
                 assistant = (
-                    await self._get_default_assistant(
+                    await self._resolve_assistant(
                         user_id=user_id,
+                        assistant_id=assistant_id,
                     )
                 )
 
@@ -345,6 +387,7 @@ class DatabaseChatService:
         user_id: UUID,
         message: str,
         conversation_id: str | None,
+        assistant_id: str | None = None,
     ) -> AsyncIterator[str]:
         """
         Stream an AI reply and store the completed exchange.
@@ -359,8 +402,9 @@ class DatabaseChatService:
         try:
             if conversation_id is None:
                 assistant = (
-                    await self._get_default_assistant(
+                    await self._resolve_assistant(
                         user_id=user_id,
+                        assistant_id=assistant_id,
                     )
                 )
 
@@ -416,7 +460,7 @@ class DatabaseChatService:
 
             async for text_chunk in stream_reply(
                 self._client,
-                model_name=settings.gemini_model,
+                model_name=conversation.model_name,
                 history=history,
                 message=message,
             ):
@@ -630,7 +674,7 @@ class DatabaseChatService:
 
             async for text_chunk in stream_reply(
                 self._client,
-                model_name=settings.gemini_model,
+                model_name=conversation.model_name,
                 history=history,
                 message=latest_user_message.content,
             ):
@@ -981,9 +1025,9 @@ class DatabaseChatService:
 
             async for text_chunk in stream_reply(
                 self._client,
-                model_name=settings.gemini_model,
+                model_name=conversation.model_name,
                 history=history,
-                message=user_message.content,
+                message=content,
             ):
                 complete_reply += text_chunk
 

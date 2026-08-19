@@ -82,6 +82,7 @@ async def send_chat_message(
         user_id=current_user.id,
         message=request.message,
         conversation_id=request.conversation_id,
+        assistant_id=request.assistant_id,
     )
 
     return ChatResponse(
@@ -126,6 +127,9 @@ async def stream_chat_message(
         message=request.message,
         conversation_id=(
             request.conversation_id
+        ),
+        assistant_id=(
+            request.assistant_id
         ),
     )
 

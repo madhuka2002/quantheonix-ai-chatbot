@@ -24,7 +24,23 @@ class ChatRequest(BaseModel):
             "Existing conversation identifier. "
             "Omit this value to create a new conversation."
         ),
-        examples=["ab47cce4-21ac-4e4c-a64a-560cf38cb632"],
+        examples=[
+            "ab47cce4-21ac-4e4c-a64a-560cf38cb632"
+        ],
+    )
+
+    assistant_id: str | None = Field(
+        default=None,
+        min_length=1,
+        max_length=100,
+        description=(
+            "Assistant to use when creating a new "
+            "conversation. If omitted, the user's "
+            "default assistant is used."
+        ),
+        examples=[
+            "7c6f0e38-7b85-4a8f-9c53-7cf4f612c876"
+        ],
     )
 
 
