@@ -97,10 +97,10 @@ async function consumeNdjsonStream({
 }) {
   if (!response.ok) {
     let data = null;
-    let text = "";
 
     try {
-      text = await response.text();
+      const text =
+        await response.text();
 
       if (text) {
         const firstLine =
@@ -115,7 +115,7 @@ async function consumeNdjsonStream({
         }
       }
     } catch {
-      // The server may not return JSON.
+      // The server may not return valid JSON.
     }
 
     throw createApiError(
