@@ -6,6 +6,8 @@ from app.api.v1.endpoints import (
     assistants,
     chat,
     health,
+    public_widgets,
+    public_chat,
 )
 from app.api.v1.endpoints.auth import (
     router as auth_router,
@@ -33,6 +35,14 @@ api_v1_router.include_router(
 
 api_v1_router.include_router(
     assistant_domains.router,
+)
+
+api_v1_router.include_router(
+    public_widgets.router,
+)
+
+api_v1_router.include_router(
+    public_chat.router,
 )
 
 api_v1_router.include_router(

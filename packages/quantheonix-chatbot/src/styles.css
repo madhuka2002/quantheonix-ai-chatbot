@@ -1,13 +1,14 @@
 .qx-widget {
   position: fixed;
   z-index: 9999;
+
   font-family:
+    var(--qx-font-family),
     Inter,
     system-ui,
-    -apple-system,
-    BlinkMacSystemFont,
-    "Segoe UI",
     sans-serif;
+
+  font-size: var(--qx-font-size);
 }
 
 .qx-widget *,
@@ -29,12 +30,31 @@
 .qx-widget__panel {
   display: flex;
   flex-direction: column;
-  width: min(380px, calc(100vw - 2rem));
-  height: min(620px, calc(100vh - 2rem));
+
+  width:
+    min(
+      var(--qx-widget-width),
+      calc(100vw - 2rem)
+    );
+
+  height:
+    min(
+      var(--qx-widget-height),
+      calc(100vh - 2rem)
+    );
+
   overflow: hidden;
-  background: #ffffff;
-  border: 1px solid #dbe3ee;
-  border-radius: 1rem;
+
+  color: var(--qx-text);
+  background: var(--qx-background);
+
+  border:
+    1px solid
+    rgba(148, 163, 184, 0.35);
+
+  border-radius:
+    var(--qx-border-radius);
+
   box-shadow:
     0 1.5rem 4rem
     rgba(15, 23, 42, 0.2);
@@ -44,9 +64,11 @@
   display: flex;
   align-items: center;
   justify-content: space-between;
+
   padding: 1rem 1.1rem;
+
   color: #ffffff;
-  background: #111827;
+  background: var(--qx-primary);
 }
 
 .qx-widget__header > div {
@@ -81,14 +103,14 @@
 .qx-widget__toolbar {
   flex-shrink: 0;
   padding: 0.6rem 0.8rem;
-  background: #f8fafc;
+  background: var(--qx-background);
   border-bottom: 1px solid #e2e8f0;
 }
 
 .qx-widget__toolbar button {
   padding: 0.45rem 0.7rem;
   color: #334155;
-  background: #ffffff;
+  background: var(--qx-background);
   border: 1px solid #cbd5e1;
   border-radius: 0.5rem;
   font: inherit;
@@ -104,7 +126,7 @@
   min-height: 0;
   padding: 1rem;
   overflow-y: auto;
-  background: #f8fafc;
+  background: var(--qx-background);
 }
 
 .qx-widget__message {
@@ -124,16 +146,24 @@
 
 .qx-widget__message--assistant {
   align-self: flex-start;
-  color: #1e293b;
-  background: #e2e8f0;
-  border-bottom-left-radius: 0.2rem;
+
+  color: var(--qx-text);
+  background:
+    var(--qx-assistant-bubble);
+
+  border-bottom-left-radius:
+    0.2rem;
 }
 
 .qx-widget__message--user {
   align-self: flex-end;
+
   color: #ffffff;
-  background: #111827;
-  border-bottom-right-radius: 0.2rem;
+  background:
+    var(--qx-user-bubble);
+
+  border-bottom-right-radius:
+    0.2rem;
 }
 
 .qx-widget__error {
@@ -155,7 +185,7 @@
   gap: 0.75rem;
   align-items: end;
   padding: 0.8rem;
-  background: #ffffff;
+  background: var(--qx-background);
   border-top: 1px solid #e2e8f0;
 }
 
@@ -168,7 +198,7 @@
 
   padding: 0.7rem 0.8rem;
   color: #1e293b;
-  background: #ffffff;
+  background: var(--qx-background);
   border: 1px solid #cbd5e1;
   border-radius: 0.65rem;
   outline: none;
@@ -189,10 +219,13 @@
 .qx-widget__form button {
   min-height: 42px;
   padding: 0.7rem 0.9rem;
+
   color: #ffffff;
-  background: #4f46e5;
+  background: var(--qx-primary);
+
   border: 0;
   border-radius: 0.65rem;
+
   font: inherit;
   cursor: pointer;
 }
@@ -204,19 +237,34 @@
 
 .qx-widget__launcher {
   display: grid;
-  width: 58px;
-  height: 58px;
+
+  width: var(--qx-launcher-size);
+  height: var(--qx-launcher-size);
+
   place-items: center;
+
+  overflow: hidden;
+
   color: #ffffff;
-  background: #4f46e5;
+  background: var(--qx-primary);
+
   border: 0;
   border-radius: 50%;
+
   box-shadow:
     0 0.8rem 2rem
-    rgba(79, 70, 229, 0.35);
+    rgba(15, 23, 42, 0.25);
+
   font: inherit;
   font-weight: 800;
+
   cursor: pointer;
+}
+
+.qx-widget__launcher img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
 }
 
 .qx-widget__launcher:hover {
@@ -299,4 +347,18 @@
     width: 100%;
     height: calc(100vh - 1rem);
   }
+}
+
+.qx-widget__identity {
+  display: flex !important;
+  align-items: center;
+  gap: 0.65rem;
+}
+
+.qx-widget__avatar {
+  width: 34px;
+  height: 34px;
+  flex-shrink: 0;
+  object-fit: cover;
+  border-radius: 50%;
 }

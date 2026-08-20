@@ -12,20 +12,80 @@ function createApiError(
 }
 
 
-async function resolveAccessToken({
-  accessToken,
-  getAccessToken,
-  forceRefresh = false,
-}) {
-  if (
-    typeof getAccessToken === "function"
-  ) {
-    return await getAccessToken({
-      forceRefresh,
-    });
+function normalizeApiUrl(apiUrl) {
+  if (!apiUrl) {
+    throw new Error(
+      "The chatbot API URL is required.",
+    );
   }
 
-  return accessToken;
+  return apiUrl.replace(/\/$/, "");
+}
+
+
+export async function getPublicAssistantConfig({
+  apiUrl,
+  assistantId,
+  signal,
+}) {
+  if (!assistantId) {
+    throw new Error(
+      "The assistant ID is required.",
+    );
+  }
+
+  const baseUrl =
+    normalizeApiUrl(apiUrl);
+
+  const endpoint =
+    `${baseUrl}/api/v1/public/assistants/` +
+    `${encodeURIComponent(assistantId)}/config`;
+
+  let response;
+
+  try {
+    response = await fetch(
+      endpoint,
+      {
+        method: "GET",
+        headers: {
+          Accept: "application/json",
+        },
+        signal,
+      },
+    );
+  } catch (error) {
+    if (error?.name === "AbortError") {
+      throw error;
+    }
+
+    throw new Error(
+      "Unable to connect to the chatbot server.",
+      {
+        cause: error,
+      },
+    );
+  }
+
+  if (!response.ok) {
+    let data = null;
+
+    try {
+      data = await response.json();
+    } catch {
+      // Response may not contain JSON.
+    }
+
+    throw createApiError(
+      data?.error?.message ||
+        data?.detail ||
+        "Unable to load the assistant.",
+      response.status,
+      data?.error?.code ?? null,
+    );
+  }
+
+  return response.json();
 }
 
 
@@ -37,19 +97,35 @@ async function consumeNdjsonStream({
 }) {
   if (!response.ok) {
     let data = null;
+    let text = "";
 
     try {
-      data = await response.json();
+      text = await response.text();
+
+      if (text) {
+        const firstLine =
+          text
+            .split("\n")
+            .find(
+              (line) => line.trim(),
+            );
+
+        if (firstLine) {
+          data = JSON.parse(firstLine);
+        }
+      }
     } catch {
       // The server may not return JSON.
     }
 
     throw createApiError(
       data?.error?.message ||
-        data?.detail ||
+        data?.message ||
         "The chatbot request failed.",
       response.status,
-      data?.error?.code ?? null,
+      data?.error?.code ??
+        data?.code ??
+        null,
     );
   }
 
@@ -83,6 +159,7 @@ async function consumeNdjsonStream({
         event.text ?? "",
         event,
       );
+
       return;
     }
 
@@ -162,11 +239,27 @@ async function consumeNdjsonStream({
       buffer.trim();
 
     if (remainingLine) {
-      processEvent(
-        JSON.parse(
-          remainingLine,
-        ),
-      );
+      try {
+        processEvent(
+          JSON.parse(
+            remainingLine,
+          ),
+        );
+      } catch (error) {
+        if (
+          error?.status ||
+          error?.code
+        ) {
+          throw error;
+        }
+
+        throw new Error(
+          "The chatbot returned an invalid stream event.",
+          {
+            cause: error,
+          },
+        );
+      }
     }
 
     return {
@@ -178,10 +271,9 @@ async function consumeNdjsonStream({
 }
 
 
-export async function streamWidgetMessage({
+export async function streamPublicMessage({
   apiUrl,
-  accessToken,
-  getAccessToken,
+  assistantId,
   message,
   conversationId = null,
   signal,
@@ -189,94 +281,42 @@ export async function streamWidgetMessage({
   onChunk,
   onDone,
 }) {
-  if (!apiUrl) {
+  if (!assistantId) {
     throw new Error(
-      "The chatbot API URL is required.",
+      "The assistant ID is required.",
     );
   }
+
+  const baseUrl =
+    normalizeApiUrl(apiUrl);
 
   const endpoint =
-    `${apiUrl.replace(/\/$/, "")}/api/v1/chat/stream`;
-
-  async function makeRequest(
-    currentToken,
-  ) {
-    const headers = {
-      Accept:
-        "application/x-ndjson",
-      "Content-Type":
-        "application/json",
-    };
-
-    if (currentToken) {
-      headers.Authorization =
-        `Bearer ${currentToken}`;
-    }
-
-    return fetch(
-      endpoint,
-      {
-        method: "POST",
-        headers,
-        body: JSON.stringify({
-          message,
-          conversation_id:
-            conversationId,
-        }),
-        signal,
-      },
-    );
-  }
-
-  let token =
-    await resolveAccessToken({
-      accessToken,
-      getAccessToken,
-      forceRefresh: false,
-    });
+    `${baseUrl}/api/v1/public/chat/stream`;
 
   let response;
 
   try {
-    response = await makeRequest(
-      token,
+    response = await fetch(
+      endpoint,
+      {
+        method: "POST",
+        headers: {
+          Accept:
+            "application/x-ndjson",
+          "Content-Type":
+            "application/json",
+        },
+        body: JSON.stringify({
+          assistant_id: assistantId,
+          conversation_id:
+            conversationId,
+          message,
+        }),
+        signal,
+      },
     );
-
-    if (
-      response.status === 401 &&
-      typeof getAccessToken ===
-        "function"
-    ) {
-      token =
-        await resolveAccessToken({
-          accessToken,
-          getAccessToken,
-          forceRefresh: true,
-        });
-
-      if (!token) {
-        throw createApiError(
-          "Authentication could not be refreshed.",
-          401,
-          "authentication_refresh_failed",
-        );
-      }
-
-      response = await makeRequest(
-        token,
-      );
-    }
   } catch (error) {
-    if (
-      error?.name ===
-      "AbortError"
-    ) {
-      throw error;
-    }
-
-    if (
-      error?.status === 401
-    ) {
+    if (error?.name === "AbortError") {
       throw error;
     }
 

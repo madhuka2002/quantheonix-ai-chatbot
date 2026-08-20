@@ -1,28 +1,92 @@
+import {
+  useEffect,
+  useState,
+} from "react";
+
 import ChatWidget from "./ChatWidget";
+
+import {
+  getPublicAssistantConfig,
+} from "./chatApi";
 
 
 function QuantheonixChat({
   apiUrl,
-  accessToken = null,
-  getAccessToken = null,
-  title = "Quantheonix AI",
-  welcomeMessage =
-    "Hello! How can I help you?",
-  placeholder =
-    "Type your message...",
-  initiallyOpen = false,
-  position = "bottom-right",
+  assistantId,
 }) {
+  const [config, setConfig] =
+    useState(null);
+
+  const [error, setError] =
+    useState("");
+
+  useEffect(() => {
+    const abortController =
+      new AbortController();
+
+    async function loadConfig() {
+      try {
+        setError("");
+
+        const data =
+          await getPublicAssistantConfig({
+            apiUrl,
+            assistantId,
+            signal:
+              abortController.signal,
+          });
+
+        setConfig(data);
+      } catch (requestError) {
+        if (
+          requestError?.name ===
+          "AbortError"
+        ) {
+          return;
+        }
+
+        setError(
+          requestError instanceof Error
+            ? requestError.message
+            : "Unable to load the assistant.",
+        );
+      }
+    }
+
+    loadConfig();
+
+    return () => {
+      abortController.abort();
+    };
+  }, [
+    apiUrl,
+    assistantId,
+  ]);
+
+  if (error) {
+    console.error(
+      "[QuantheonixChat]",
+      error,
+    );
+
+    return null;
+  }
+
+  if (!config) {
+    return null;
+  }
+
   return (
     <ChatWidget
       apiUrl={apiUrl}
-      accessToken={accessToken}
-      getAccessToken={getAccessToken}
-      title={title}
-      welcomeMessage={welcomeMessage}
-      placeholder={placeholder}
-      initiallyOpen={initiallyOpen}
-      position={position}
+      assistantId={assistantId}
+      title={
+        config.display_name ||
+        "AI Assistant"
+      }
+      settings={
+        config.widget || {}
+      }
     />
   );
 }

@@ -16,6 +16,8 @@ from app.models.message import (
 )
 
 from app.models.user import User
+from app.models.public_conversation import PublicConversation
+from app.models.public_message import PublicMessage
 
 
 __all__ = [
@@ -26,4 +28,6 @@ __all__ = [
     "Message",
     "MessageRole",
     "User",
+    "PublicConversation",
+    "PublicMessage",
 ]

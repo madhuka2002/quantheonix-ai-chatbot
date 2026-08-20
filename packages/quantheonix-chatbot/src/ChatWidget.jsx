@@ -1,4 +1,6 @@
 import {
+  useEffect,
+  useMemo,
   useRef,
   useState,
 } from "react";
@@ -7,7 +9,7 @@ import MarkdownMessage
   from "./MarkdownMessage";
 
 import {
-  streamWidgetMessage,
+  streamPublicMessage,
 } from "./chatApi";
 
 
@@ -25,16 +27,28 @@ function createMessage(
 
 function ChatWidget({
   apiUrl,
-  accessToken,
-  getAccessToken,
+  assistantId,
   title,
-  welcomeMessage,
-  placeholder,
-  initiallyOpen,
-  position,
+  settings,
 }) {
+  const welcomeMessage =
+    settings.welcome_message ||
+    "Hello! How can I help you?";
+
+  const placeholder =
+    settings.placeholder ||
+    "Type your message...";
+
+  const position =
+    settings.position ||
+    "bottom-right";
+
   const [isOpen, setIsOpen] =
-    useState(initiallyOpen);
+    useState(
+      Boolean(
+        settings.initially_open,
+      ),
+    );
 
   const [messages, setMessages] =
     useState([
@@ -60,6 +74,75 @@ function ChatWidget({
 
   const abortControllerRef =
     useRef(null);
+
+  const messagesRef =
+    useRef(null);
+
+
+  useEffect(() => {
+    const element =
+      messagesRef.current;
+
+    if (!element) {
+      return;
+    }
+
+    element.scrollTop =
+      element.scrollHeight;
+  }, [
+    messages,
+    isStreaming,
+  ]);
+
+
+  const widgetStyle =
+    useMemo(
+      () => ({
+        "--qx-primary":
+          settings.primary_color ||
+          "#4f46e5",
+
+        "--qx-secondary":
+          settings.secondary_color ||
+          "#64748b",
+
+        "--qx-background":
+          settings.background_color ||
+          "#ffffff",
+
+        "--qx-text":
+          settings.text_color ||
+          "#1e293b",
+
+        "--qx-assistant-bubble":
+          settings.assistant_bubble_color ||
+          "#e2e8f0",
+
+        "--qx-user-bubble":
+          settings.user_bubble_color ||
+          "#4f46e5",
+
+        "--qx-font-family":
+          settings.font_family ||
+          "Inter",
+
+        "--qx-font-size":
+          `${settings.font_size || 14}px`,
+
+        "--qx-widget-width":
+          `${settings.widget_width || 380}px`,
+
+        "--qx-widget-height":
+          `${settings.widget_height || 620}px`,
+
+        "--qx-border-radius":
+          `${settings.border_radius || 16}px`,
+
+        "--qx-launcher-size":
+          `${settings.launcher_size || 58}px`,
+      }),
+      [settings],
+    );
 
 
   async function handleSubmit(event) {
@@ -105,10 +188,9 @@ function ChatWidget({
 
     try {
       const result =
-        await streamWidgetMessage({
+        await streamPublicMessage({
           apiUrl,
-          accessToken,
-          getAccessToken,
+          assistantId,
           message: cleanedMessage,
           conversationId,
           signal:
@@ -163,8 +245,32 @@ function ChatWidget({
         requestError?.name ===
         "AbortError"
       ) {
+        setMessages(
+          (currentMessages) =>
+            currentMessages.filter(
+              (message) =>
+                !(
+                  message.id ===
+                    assistantMessageId &&
+                  !message.content
+                ),
+            ),
+        );
+
         return;
       }
+
+      setMessages(
+        (currentMessages) =>
+          currentMessages.filter(
+            (message) =>
+              !(
+                message.id ===
+                  assistantMessageId &&
+                !message.content
+              ),
+          ),
+      );
 
       setError(
         requestError instanceof Error
@@ -204,18 +310,53 @@ function ChatWidget({
   }
 
 
+  function handleKeyDown(event) {
+    if (
+      event.key === "Enter" &&
+      !event.shiftKey
+    ) {
+      event.preventDefault();
+
+      if (
+        input.trim() &&
+        !isStreaming
+      ) {
+        event.currentTarget
+          .form
+          ?.requestSubmit();
+      }
+    }
+  }
+
+
   return (
     <div
       className={
         `qx-widget qx-widget--${position}`
       }
+      style={widgetStyle}
     >
       {isOpen && (
         <section className="qx-widget__panel">
           <header className="qx-widget__header">
-            <div>
-              <strong>{title}</strong>
-              <span>Online</span>
+            <div className="qx-widget__identity">
+              {settings.avatar_url && (
+                <img
+                  className="qx-widget__avatar"
+                  src={settings.avatar_url}
+                  alt=""
+                />
+              )}
+
+              <div>
+                <strong>
+                  {title}
+                </strong>
+
+                <span>
+                  Online
+                </span>
+              </div>
             </div>
 
             <button
@@ -229,30 +370,42 @@ function ChatWidget({
             </button>
           </header>
 
-          <div className="qx-widget__toolbar">
-            <button
-              type="button"
-              onClick={handleNewChat}
-              disabled={isStreaming}
-            >
-              New chat
-            </button>
-          </div>
+          {settings.show_new_chat !==
+            false && (
+            <div className="qx-widget__toolbar">
+              <button
+                type="button"
+                onClick={handleNewChat}
+                disabled={isStreaming}
+              >
+                New chat
+              </button>
+            </div>
+          )}
 
-          <div className="qx-widget__messages">
+          <div
+            ref={messagesRef}
+            className="qx-widget__messages"
+          >
             {messages.map(
               (message) => (
                 <article
                   key={message.id}
                   className={
-                    `qx-widget__message qx-widget__message--${message.role}`
+                    `qx-widget__message ` +
+                    `qx-widget__message--${message.role}`
                   }
                 >
                   {message.role ===
                   "assistant" ? (
                     <MarkdownMessage
                       content={
-                        message.content
+                        message.content ||
+                        (
+                          isStreaming
+                            ? "..."
+                            : ""
+                        )
                       }
                     />
                   ) : (
@@ -282,6 +435,7 @@ function ChatWidget({
                   event.target.value,
                 )
               }
+              onKeyDown={handleKeyDown}
               placeholder={placeholder}
               disabled={isStreaming}
               rows={2}
@@ -297,9 +451,7 @@ function ChatWidget({
             ) : (
               <button
                 type="submit"
-                disabled={
-                  !input.trim()
-                }
+                disabled={!input.trim()}
               >
                 Send
               </button>
@@ -317,7 +469,16 @@ function ChatWidget({
           }
           aria-label="Open chatbot"
         >
-          QX
+          {settings.launcher_icon ? (
+            <img
+              src={
+                settings.launcher_icon
+              }
+              alt=""
+            />
+          ) : (
+            "QX"
+          )}
         </button>
       )}
     </div>
