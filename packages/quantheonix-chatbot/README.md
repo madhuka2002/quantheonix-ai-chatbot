@@ -1,71 +1,55 @@
 # @quantheonix/chatbot
 
-Embeddable React AI chatbot widget for applications using the Quantheonix backend.
+Embeddable React chatbot widget for assistants created with the Quantheonix AI Chatbot platform.
 
-The package provides a reusable chatbot interface with streaming responses, Markdown rendering, syntax highlighting, authentication support, token refresh integration, and configurable presentation.
+The widget loads its configuration from the Quantheonix backend and supports streaming AI responses, conversation memory, Markdown rendering, syntax highlighting, custom appearance, and allowed-domain protection.
 
-> `@quantheonix/chatbot` is the frontend client/widget only.  
-> A running Quantheonix backend is required.
-
----
+> A running Quantheonix backend and an active assistant are required.
 
 ## Features
 
 - React chatbot widget
-- Streaming AI responses
-- NDJSON stream handling
+- Public assistant configuration loading
+- Streaming AI responses using NDJSON
+- Conversation memory
 - Markdown rendering
-- GitHub-flavored Markdown support
+- GitHub-flavored Markdown
 - Syntax-highlighted code blocks
-- JWT access-token support
-- Automatic retry after `401` through `getAccessToken`
-- Token refresh integration
 - Stop generation
 - New chat
-- Configurable title
-- Configurable welcome message
-- Configurable placeholder
-- Open/closed initial state
-- Bottom-right placement
-- Bottom-left placement
-- Responsive mobile layout
-- Conversation ID support
-- Error handling
-
----
+- Configurable colors and appearance
+- Configurable dimensions and fonts
+- Bottom-left or bottom-right placement
+- Custom avatar and launcher support
+- Allowed-domain validation
+- Responsive layout
+- Public chatbot access without exposing user JWT tokens
 
 ## Requirements
 
-The frontend application requires:
-
 - React 18 or newer
 - React DOM 18 or newer
-- A running Quantheonix backend API
+- Quantheonix backend
+- Active Quantheonix assistant
+- Website hostname added to Allowed Domains
 
-The npm package does **not** contain:
+The frontend does not need:
 
 - Gemini API keys
 - JWT signing secrets
-- PostgreSQL credentials
-- backend database logic
+- database credentials
+- user access tokens
+- refresh tokens
 
-Those remain on the backend.
+Sensitive credentials remain on the backend.
 
----
-
-# Installation
-
-Install the package:
+## Installation
 
 ```bash
 npm install @quantheonix/chatbot
 ```
 
----
-
-# Basic Usage
-
-Import the component:
+## Usage
 
 ```jsx
 import {
@@ -73,482 +57,252 @@ import {
 } from "@quantheonix/chatbot";
 
 import "@quantheonix/chatbot/chatbot.css";
-```
 
-Then use it in your React application:
-
-```jsx
 function App() {
   return (
-    <QuantheonixChat
-      apiUrl="http://localhost:8000"
-    />
+    <>
+      <main>
+        <h1>My Website</h1>
+      </main>
+
+      <QuantheonixChat
+        apiUrl="http://127.0.0.1:8000"
+        assistantId="YOUR_ASSISTANT_ID"
+      />
+    </>
   );
 }
 
 export default App;
 ```
 
-The chatbot will connect to the Quantheonix backend provided through `apiUrl`.
+## Component API
 
----
+| Prop | Type | Required | Description |
+|---|---|---:|---|
+| `apiUrl` | `string` | Yes | Base URL of the Quantheonix backend |
+| `assistantId` | `string` | Yes | UUID of the assistant |
 
-# Backend Requirement
-
-`@quantheonix/chatbot` is not a standalone AI service.
-
-The package communicates with a compatible Quantheonix backend.
-
-Architecture:
-
-```text
-React Application
-       |
-       | @quantheonix/chatbot
-       |
-       v
-Quantheonix Backend
-       |
-       +--------------------+
-       |                    |
-       v                    v
-PostgreSQL              Gemini API
-```
-
-The backend is responsible for:
-
-- authentication
-- access tokens
-- refresh tokens
-- conversations
-- AI generation
-- streaming
-- PostgreSQL persistence
-- Gemini API integration
-- rate limiting
-- CORS
-- error handling
-
-See:
-
-```text
-docs/backend-setup.md
-```
-
-for complete backend setup instructions.
-
----
-
-# Configuration
-
-The main component is:
-
-```jsx
-<QuantheonixChat />
-```
-
-Supported props:
-
-| Prop | Type | Required | Default | Description |
-|---|---|---:|---|---|
-| `apiUrl` | `string` | Yes | — | Base URL of the Quantheonix backend |
-| `accessToken` | `string \| null` | No | `null` | JWT access token |
-| `getAccessToken` | `function \| null` | No | `null` | Callback used to obtain or refresh an access token |
-| `title` | `string` | No | `"Quantheonix AI"` | Widget title |
-| `welcomeMessage` | `string` | No | `"Hello! How can I help you?"` | Initial assistant message |
-| `placeholder` | `string` | No | `"Type your message..."` | Input placeholder |
-| `initiallyOpen` | `boolean` | No | `false` | Whether the widget starts open |
-| `position` | `string` | No | `"bottom-right"` | Widget position |
-
----
-
-# `apiUrl`
-
-The `apiUrl` must point to the Quantheonix backend.
-
-Local development example:
-
-```jsx
-<QuantheonixChat
-  apiUrl="http://localhost:8000"
-/>
-```
-
-Production example:
+Example:
 
 ```jsx
 <QuantheonixChat
   apiUrl="https://api.example.com"
+  assistantId="xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"
 />
 ```
 
-Do not point `apiUrl` directly to Gemini.
+Widget styling and behavior are loaded automatically from the assistant configuration stored in Quantheonix.
 
-Do not place a Gemini API key in the frontend.
+## Architecture
 
----
-
-# Recommended Frontend Environment Variable
-
-For Vite applications, the backend URL can be stored in a frontend environment variable:
-
-```env
-VITE_CHATBOT_API_URL=http://localhost:8000
+```text
+React Website
+      |
+      | @quantheonix/chatbot
+      |
+      v
+Public Assistant Config
+      |
+      v
+Chat Widget
+      |
+      v
+Public Chat Stream
+      |
+      v
+Quantheonix Backend
+      |
+      +----------------------+
+      |                      |
+      v                      v
+PostgreSQL               AI Provider
 ```
 
-Then:
+## Public Configuration
 
-```jsx
-<QuantheonixChat
-  apiUrl={
-    import.meta.env.VITE_CHATBOT_API_URL
-  }
-/>
+The widget loads:
+
+```http
+GET /api/v1/public/assistants/{assistant_id}/config
 ```
 
-Production:
+This provides values such as:
+
+- display name
+- welcome message
+- placeholder
+- widget position
+- colors
+- font
+- dimensions
+- border radius
+- launcher configuration
+- feature toggles
+
+These values do not need to be duplicated in the customer website.
+
+## Public Chat
+
+Messages are sent to:
+
+```http
+POST /api/v1/public/chat/stream
+```
+
+Example request:
+
+```json
+{
+  "assistant_id": "xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx",
+  "conversation_id": null,
+  "message": "Hello"
+}
+```
+
+The backend responds with NDJSON events:
+
+```json
+{"type":"start","conversation_id":"..."}
+{"type":"chunk","text":"Hello"}
+{"type":"chunk","text":"! How can I help?"}
+{"type":"done","conversation_id":"..."}
+```
+
+The package handles this stream automatically.
+
+## Conversation Memory
+
+The backend returns a `conversation_id` when a conversation starts.
+
+The widget keeps that ID and includes it with later messages so the assistant can use previous conversation history.
+
+Using **New chat** resets the conversation ID and starts a separate conversation.
+
+## Allowed Domains
+
+Before deploying the widget, add the website hostname to the assistant's **Allowed Domains** configuration.
+
+Production example:
+
+```text
+example.com
+```
+
+Development example:
+
+```text
+localhost
+```
+
+Unauthorized origins are rejected by the backend.
+
+## CORS
+
+Allowed Domains and CORS are separate protections.
+
+Allowed Domains decide which websites may use an assistant.
+
+CORS decides which browser origins may read API responses.
+
+For development you may need origins such as:
+
+```text
+http://localhost:5173
+http://localhost:5174
+```
+
+Production deployments should use the real frontend origin.
+
+## Environment Variables
+
+With Vite:
 
 ```env
 VITE_CHATBOT_API_URL=https://api.example.com
-```
-
-The backend URL is not a secret.
-
----
-
-# Authentication
-
-The package supports JWT-based authentication through either:
-
-```text
-accessToken
-```
-
-or:
-
-```text
-getAccessToken
-```
-
----
-
-## Fixed Access Token
-
-If your application already has an access token:
-
-```jsx
-function App() {
-  const accessToken =
-    localStorage.getItem(
-      "access_token",
-    );
-
-  return (
-    <QuantheonixChat
-      apiUrl="http://localhost:8000"
-      accessToken={accessToken}
-    />
-  );
-}
-```
-
-The package sends the token as:
-
-```http
-Authorization: Bearer ACCESS_TOKEN
-```
-
----
-
-# Recommended Authentication Integration
-
-For applications that support token refresh, use:
-
-```text
-getAccessToken
-```
-
-Example:
-
-```jsx
-async function getAccessToken({
-  forceRefresh = false,
-} = {}) {
-  if (!forceRefresh) {
-    return localStorage.getItem(
-      "quantheonix_access_token",
-    );
-  }
-
-  const refreshToken =
-    localStorage.getItem(
-      "quantheonix_refresh_token",
-    );
-
-  if (!refreshToken) {
-    return null;
-  }
-
-  const response = await fetch(
-    "http://localhost:8000/api/v1/auth/refresh",
-    {
-      method: "POST",
-      headers: {
-        Accept: "application/json",
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        refresh_token: refreshToken,
-      }),
-    },
-  );
-
-  if (!response.ok) {
-    localStorage.removeItem(
-      "quantheonix_access_token",
-    );
-
-    localStorage.removeItem(
-      "quantheonix_refresh_token",
-    );
-
-    return null;
-  }
-
-  const data = await response.json();
-
-  localStorage.setItem(
-    "quantheonix_access_token",
-    data.access_token,
-  );
-
-  localStorage.setItem(
-    "quantheonix_refresh_token",
-    data.refresh_token,
-  );
-
-  return data.access_token;
-}
+VITE_CHATBOT_ASSISTANT_ID=xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx
 ```
 
 Then:
 
 ```jsx
 <QuantheonixChat
-  apiUrl="http://localhost:8000"
-  getAccessToken={getAccessToken}
+  apiUrl={import.meta.env.VITE_CHATBOT_API_URL}
+  assistantId={
+    import.meta.env.VITE_CHATBOT_ASSISTANT_ID
+  }
 />
 ```
 
----
+The API URL and assistant ID are public identifiers, not secrets.
 
-# Automatic 401 Retry
+## Security
 
-When `getAccessToken` is provided, the package supports automatic recovery from an expired access token.
+Never expose these values in frontend code:
 
-The request flow is:
+- AI provider API keys
+- JWT secret keys
+- database passwords
+- PostgreSQL connection strings
+- access tokens
+- refresh tokens
+- private backend credentials
+
+## Local Development
+
+Start the backend:
+
+```bash
+uvicorn main:app --reload
+```
+
+Start the React application:
+
+```bash
+npm run dev
+```
+
+Make sure:
+
+1. the assistant is active,
+2. `localhost` exists in Allowed Domains,
+3. the frontend origin is allowed by CORS,
+4. the backend is reachable from the browser.
+
+## React Support
+
+The current package is intended for React applications.
+
+Standalone plain-HTML `<script>` integration is not yet included.
+
+## Self-Hosted Deployments
+
+The `apiUrl` must be reachable from the user's browser.
+
+For example:
 
 ```text
-Chat request
-     |
-     v
-401 Unauthorized
-     |
-     v
-getAccessToken({
-  forceRefresh: true
-})
-     |
-     v
-New access token
-     |
-     v
-Retry chat request
+http://192.168.1.50:8000
 ```
 
-If the refresh callback does not return a token, the chatbot reports an authentication error.
-
----
-
-# `getAccessToken`
-
-The callback receives:
-
-```js
-{
-  forceRefresh: boolean
-}
-```
-
-Normal request:
-
-```js
-forceRefresh === false
-```
-
-After a `401`:
-
-```js
-forceRefresh === true
-```
-
-Example:
-
-```jsx
-async function getAccessToken({
-  forceRefresh,
-}) {
-  if (!forceRefresh) {
-    return currentAccessToken;
-  }
-
-  return await refreshToken();
-}
-```
-
-The host application remains responsible for implementing the actual authentication and refresh-token logic.
-
----
-
-# Streaming Responses
-
-The chatbot sends requests to:
+A browser on another computer cannot use:
 
 ```text
-/api/v1/chat/stream
+http://127.0.0.1:8000
 ```
 
-The backend returns:
+to reach your server because `127.0.0.1` refers to that browser's own device.
+
+## Package Contents
 
 ```text
-application/x-ndjson
+dist/
+  quantheonix-chatbot.js
+  chatbot.css
+
+README.md
 ```
 
-The package consumes stream events such as:
+## License
 
-```json
-{
-  "type": "start",
-  "conversation_id": "..."
-}
-```
-
-```json
-{
-  "type": "chunk",
-  "text": "Hello"
-}
-```
-
-```json
-{
-  "type": "done",
-  "conversation_id": "..."
-}
-```
-
-The assistant response is displayed progressively as chunks arrive.
-
----
-
-# Stop Generation
-
-While a response is streaming, the widget displays a:
-
-```text
-Stop
-```
-
-button.
-
-The current request is cancelled using:
-
-```text
-AbortController
-```
-
-This stops the active client-side streaming request.
-
----
-
-# New Chat
-
-The widget includes a:
-
-```text
-New chat
-```
-
-button.
-
-Starting a new chat clears the widget's local message state and resets the current conversation ID.
-
-The next message begins a new backend conversation.
-
----
-
-# Conversation IDs
-
-The package stores the conversation ID returned by the backend.
-
-The flow is:
-
-```text
-First message
-     |
-     v
-Backend creates conversation
-     |
-     v
-conversation_id
-     |
-     v
-Widget stores conversation ID
-     |
-     v
-Later messages use same conversation
-```
-
-Selecting:
-
-```text
-New chat
-```
-
-resets the current conversation ID.
-
----
-
-# Markdown Support
-
-Assistant responses support Markdown.
-
-Examples:
-
-```markdown
-# Heading
-
-**Bold**
-
-- List item
-- Another item
-
-`inline code`
-```
-
-The package also supports GitHub-flavored Markdown features.
-
----
-
-# Code Highlighting
-
-Assistant responses can include code blocks.
-
-Example:
-
-````markdown
-```javascript
-function hello() {
-  console.log("Hello");
-}
-```
+MIT
