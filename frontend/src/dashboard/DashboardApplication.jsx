@@ -26,9 +26,6 @@ import CustomizePage
 import OverviewPage
   from "./pages/OverviewPage";
 
-import PlaceholderPage
-  from "./pages/PlaceholderPage";
-
 import "./styles/dashboard.css";
 
 import DomainsPage

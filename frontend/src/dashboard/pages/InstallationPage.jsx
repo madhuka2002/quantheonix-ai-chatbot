@@ -17,6 +17,7 @@ function CodeBlock({
     setCopied,
   ] = useState(false);
 
+
   async function handleCopy() {
     try {
       await navigator.clipboard.writeText(
@@ -35,6 +36,7 @@ function CodeBlock({
       setCopied(false);
     }
   }
+
 
   return (
     <div className="installation-code">
@@ -75,18 +77,21 @@ export default function InstallationPage({
   const npmInstall =
     "npm install @quantheonix/chatbot";
 
+
   const reactExample =
     useMemo(
       () =>
 `import {
-  QuantheonixChatbot,
+  QuantheonixChat,
 } from "@quantheonix/chatbot";
+
+import "@quantheonix/chatbot/chatbot.css";
 
 export default function App() {
   return (
-    <QuantheonixChatbot
+    <QuantheonixChat
+      apiUrl="${apiBaseUrl}"
       assistantId="${assistantId}"
-      apiBaseUrl="${apiBaseUrl}"
     />
   );
 }`,
@@ -96,26 +101,13 @@ export default function App() {
       ],
     );
 
-  const scriptExample =
-    useMemo(
-      () =>
-`<script
-  src="https://unpkg.com/@quantheonix/chatbot/dist/quantheonix-chatbot.js"
-  data-assistant-id="${assistantId}"
-  data-api-base-url="${apiBaseUrl}">
-</script>`,
-      [
-        assistantId,
-        apiBaseUrl,
-      ],
-    );
 
   const configExample =
     useMemo(
       () =>
 `{
   "assistantId": "${assistantId}",
-  "apiBaseUrl": "${apiBaseUrl}"
+  "apiUrl": "${apiBaseUrl}"
 }`,
       [
         assistantId,
@@ -158,10 +150,9 @@ export default function App() {
           </h2>
 
           <p>
-            Use the assistant ID and
-            your Quantheonix API URL to
-            embed this chatbot into a
-            website.
+            Install the Quantheonix React
+            widget using this assistant ID
+            and API URL.
           </p>
         </div>
       </section>
@@ -177,6 +168,7 @@ export default function App() {
             Deployment details
           </h3>
 
+
           <div className="installation-detail">
             <span>
               Assistant
@@ -189,6 +181,7 @@ export default function App() {
             </strong>
           </div>
 
+
           <div className="installation-detail">
             <span>
               Assistant ID
@@ -199,6 +192,7 @@ export default function App() {
             </code>
           </div>
 
+
           <div className="installation-detail">
             <span>
               API URL
@@ -208,6 +202,7 @@ export default function App() {
               {apiBaseUrl}
             </code>
           </div>
+
 
           <div className="installation-detail">
             <span>
@@ -239,9 +234,9 @@ export default function App() {
           </h3>
 
           <p>
-            Add the Quantheonix widget
-            package to your frontend
-            project.
+            Add the Quantheonix chatbot
+            package to your React
+            application.
           </p>
 
           <CodeBlock
@@ -257,40 +252,18 @@ export default function App() {
           </span>
 
           <h3>
-            React integration
+            Add the chatbot
           </h3>
 
           <p>
-            Use the package directly
-            inside your React
-            application.
+            Import the component and
+            stylesheet, then provide your
+            API URL and assistant ID.
           </p>
 
           <CodeBlock
             label="React"
             code={reactExample}
-          />
-        </section>
-
-
-        <section className="installation-card installation-card--wide">
-          <span className="dashboard-eyebrow">
-            Plain HTML
-          </span>
-
-          <h3>
-            Script integration
-          </h3>
-
-          <p>
-            For websites that do not
-            use React, load the widget
-            through a script tag.
-          </p>
-
-          <CodeBlock
-            label="HTML"
-            code={scriptExample}
           />
         </section>
 
@@ -301,8 +274,13 @@ export default function App() {
           </span>
 
           <h3>
-            Runtime config
+            Runtime values
           </h3>
+
+          <p>
+            These are the public values
+            required by the widget.
+          </p>
 
           <CodeBlock
             label="JSON"
@@ -327,8 +305,8 @@ export default function App() {
               </span>
 
               <p>
-                Add the website to
-                Allowed Domains.
+                Add the website hostname
+                to Allowed Domains.
               </p>
             </div>
 
@@ -349,9 +327,9 @@ export default function App() {
               </span>
 
               <p>
-                Confirm the backend API
-                is reachable from the
-                website.
+                Make sure the Quantheonix
+                backend API is reachable
+                from the website.
               </p>
             </div>
 
@@ -361,10 +339,53 @@ export default function App() {
               </span>
 
               <p>
-                Test the chatbot before
+                Configure backend CORS for
+                the website origin.
+              </p>
+            </div>
+
+            <div>
+              <span>
+                05
+              </span>
+
+              <p>
+                Test configuration loading
+                and chat streaming before
                 production deployment.
               </p>
             </div>
+          </div>
+        </section>
+
+
+        <section className="installation-card installation-card--wide">
+          <span className="dashboard-eyebrow">
+            Security Notice
+          </span>
+
+          <h3>
+            Never expose secrets
+          </h3>
+
+          <p>
+            The browser integration only
+            requires the public assistant
+            ID and API URL.
+          </p>
+
+          <div className="installation-note">
+            <strong>
+              Do not place these in frontend code
+            </strong>
+
+            <p>
+              Gemini API keys, JWT secrets,
+              database credentials, user
+              access tokens or other private
+              server credentials must remain
+              on the backend.
+            </p>
           </div>
         </section>
 
@@ -381,9 +402,9 @@ export default function App() {
           <p>
             If Quantheonix is hosted on
             your own machine or server,
-            replace the API URL with the
-            address reachable by the
-            client website.
+            use an API address that the
+            client website can actually
+            reach.
           </p>
 
           <div className="installation-note">
@@ -396,12 +417,32 @@ export default function App() {
             </code>
 
             <p>
-              A browser running on
-              another device cannot use
-              127.0.0.1 to reach your
-              Quantheonix backend.
+              A browser running on another
+              device cannot use 127.0.0.1
+              to reach your Quantheonix
+              backend.
             </p>
           </div>
+        </section>
+
+
+        <section className="installation-card installation-card--wide">
+          <span className="dashboard-eyebrow">
+            Coming Later
+          </span>
+
+          <h3>
+            Plain HTML / script integration
+          </h3>
+
+          <p>
+            Standalone JavaScript embedding
+            for non-React websites is not
+            available in the current package
+            version. Do not use a script-tag
+            installation until that runtime
+            is implemented.
+          </p>
         </section>
       </div>
     </div>
