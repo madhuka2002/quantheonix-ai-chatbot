@@ -2,7 +2,6 @@ from uuid import UUID
 
 from fastapi import (
     APIRouter,
-    HTTPException,
     Response,
     status,
 )
@@ -19,9 +18,7 @@ from app.schemas.assistant import (
 )
 
 from app.services.assistant_service import (
-    AssistantNotFoundError,
     AssistantService,
-    DefaultAssistantDeleteError,
 )
 
 
@@ -89,22 +86,14 @@ async def get_assistant(
 ) -> AssistantResponse:
     service = AssistantService(session)
 
-    try:
-        assistant = await service.get_assistant(
-            user_id=current_user.id,
-            assistant_id=assistant_id,
-        )
-
-    except AssistantNotFoundError as exc:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Assistant not found.",
-        ) from exc
+    assistant = await service.get_assistant(
+        user_id=current_user.id,
+        assistant_id=assistant_id,
+    )
 
     return AssistantResponse.model_validate(
         assistant
     )
-
 
 @router.patch(
     "/{assistant_id}",
@@ -119,18 +108,11 @@ async def update_assistant(
 ) -> AssistantResponse:
     service = AssistantService(session)
 
-    try:
-        assistant = await service.update_assistant(
-            user_id=current_user.id,
-            assistant_id=assistant_id,
-            data=data,
-        )
-
-    except AssistantNotFoundError as exc:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Assistant not found.",
-        ) from exc
+    assistant = await service.update_assistant(
+        user_id=current_user.id,
+        assistant_id=assistant_id,
+        data=data,
+    )
 
     return AssistantResponse.model_validate(
         assistant
@@ -149,25 +131,10 @@ async def delete_assistant(
 ) -> Response:
     service = AssistantService(session)
 
-    try:
-        await service.delete_assistant(
-            user_id=current_user.id,
-            assistant_id=assistant_id,
-        )
-
-    except AssistantNotFoundError as exc:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Assistant not found.",
-        ) from exc
-
-    except DefaultAssistantDeleteError as exc:
-        raise HTTPException(
-            status_code=status.HTTP_409_CONFLICT,
-            detail=(
-                "The default assistant cannot be deleted."
-            ),
-        ) from exc
+    await service.delete_assistant(
+        user_id=current_user.id,
+        assistant_id=assistant_id,
+    )
 
     return Response(
         status_code=status.HTTP_204_NO_CONTENT,

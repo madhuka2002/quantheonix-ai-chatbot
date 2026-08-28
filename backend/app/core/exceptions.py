@@ -288,3 +288,35 @@ class RateLimitExceededError(ApplicationError):
         )
 
         self.retry_after = retry_after
+
+
+# =========================================================
+# Assistant exceptions
+# =========================================================
+
+
+class AssistantNotFoundError(ApplicationError):
+    """
+    Raised when an assistant cannot be found for the
+    authenticated user.
+    """
+
+    def __init__(self) -> None:
+        super().__init__(
+            code="assistant_not_found",
+            message="The requested assistant was not found.",
+            status_code=status.HTTP_404_NOT_FOUND,
+        )
+
+
+class DefaultAssistantDeleteError(ApplicationError):
+    """
+    Raised when attempting to delete the default assistant.
+    """
+
+    def __init__(self) -> None:
+        super().__init__(
+            code="default_assistant_delete_forbidden",
+            message="The default assistant cannot be deleted.",
+            status_code=status.HTTP_409_CONFLICT,
+        )

@@ -11,13 +11,10 @@ from app.schemas.assistant import (
     AssistantUpdate,
 )
 
-
-class AssistantNotFoundError(Exception):
-    pass
-
-
-class DefaultAssistantDeleteError(Exception):
-    pass
+from app.core.exceptions import (
+    AssistantNotFoundError,
+    DefaultAssistantDeleteError,
+)
 
 
 class AssistantService:
