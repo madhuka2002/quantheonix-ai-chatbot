@@ -4,6 +4,11 @@ from app.models.assistant_allowed_domain import (
     AssistantAllowedDomain,
 )
 
+from app.models.assistant_document import (
+    AssistantDocument,
+    AssistantDocumentStatus,
+)
+
 from app.models.assistant_widget_settings import (
     AssistantWidgetSettings,
 )
@@ -15,19 +20,27 @@ from app.models.message import (
     MessageRole,
 )
 
+from app.models.public_conversation import (
+    PublicConversation,
+)
+
+from app.models.public_message import (
+    PublicMessage,
+)
+
 from app.models.user import User
-from app.models.public_conversation import PublicConversation
-from app.models.public_message import PublicMessage
 
 
 __all__ = [
     "Assistant",
     "AssistantAllowedDomain",
+    "AssistantDocument",
+    "AssistantDocumentStatus",
     "AssistantWidgetSettings",
     "Conversation",
     "Message",
     "MessageRole",
-    "User",
     "PublicConversation",
     "PublicMessage",
+    "User",
 ]

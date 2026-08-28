@@ -32,6 +32,9 @@ if TYPE_CHECKING:
     )
     from app.models.conversation import Conversation
     from app.models.user import User
+    from app.models.assistant_document import (
+        AssistantDocument,
+    )
 
 
 class Assistant(
@@ -138,6 +141,13 @@ class Assistant(
 
     conversations: Mapped[
         list["Conversation"]
+    ] = relationship(
+        back_populates="assistant",
+        cascade="all, delete-orphan",
+    )
+
+    documents: Mapped[
+        list["AssistantDocument"]
     ] = relationship(
         back_populates="assistant",
         cascade="all, delete-orphan",
