@@ -1,4 +1,33 @@
 services:
+  postgres:
+    image: postgres:17-alpine
+    container_name: quantheonix-dev-postgres
+
+    environment:
+      POSTGRES_DB: quantheonix_chatbot
+      POSTGRES_USER: quantheonix_user
+      POSTGRES_PASSWORD: user123
+
+    ports:
+      - "5433:5432"
+
+    volumes:
+      - quantheonix_dev_postgres_data:/var/lib/postgresql/data
+
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          "pg_isready -U quantheonix_user -d quantheonix_chatbot"
+        ]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 10s
+
+    restart: unless-stopped
+
+
   backend:
     build:
       context: ./backend
@@ -9,8 +38,15 @@ services:
     env_file:
       - ./backend/.env.docker
 
+    environment:
+      DATABASE_URL: postgresql+asyncpg://quantheonix_user:user123@postgres:5432/quantheonix_chatbot
+
     ports:
       - "8000:8000"
+
+    depends_on:
+      postgres:
+        condition: service_healthy
 
     restart: unless-stopped
 
@@ -46,3 +82,8 @@ services:
         condition: service_healthy
 
     restart: unless-stopped
+
+
+volumes:
+  quantheonix_dev_postgres_data:
+    name: quantheonix_dev_postgres_data
