@@ -32,6 +32,7 @@ Thumbs.db
 
 .pytest_cache/
 *.tgz
+!widget-demo/vendor/*.tgz
 
 .env.docker
 .env.*
