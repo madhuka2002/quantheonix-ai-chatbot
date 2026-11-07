@@ -1,3 +1,4 @@
+import asyncio
 import json
 import uuid
 
@@ -534,6 +535,249 @@ def test_gemini_provider_uses_mocked_response(monkeypatch):
         history=[],
         message="Hello",
     ) == "Gemini response"
+
+
+@pytest.mark.asyncio
+async def test_gemini_stream_keeps_clients_open_until_consumed(
+    monkeypatch,
+):
+    lifecycle = []
+
+    class Chunk:
+        def __init__(self, text):
+            self.text = text
+
+    class AsyncClient:
+        def __init__(self, client):
+            self.client = client
+            self.models = self
+            self.is_open = False
+
+        async def __aenter__(self):
+            self.is_open = True
+            lifecycle.append("async-open")
+            return self
+
+        async def __aexit__(self, *args):
+            self.is_open = False
+            lifecycle.append("async-close")
+
+        async def generate_content_stream(self, **kwargs):
+            assert self.client.is_open
+            assert self.is_open
+            assert kwargs["model"] == "gemini-flash-latest"
+
+            async def chunks():
+                for text in ("Gemini ", "reply"):
+                    assert self.client.is_open
+                    assert self.is_open
+                    yield Chunk(text)
+
+            return chunks()
+
+    class Client:
+        def __init__(self, *, api_key):
+            assert api_key == "gemini-test-key"
+            self.aio = AsyncClient(self)
+            self.is_open = False
+
+        def __enter__(self):
+            self.is_open = True
+            lifecycle.append("client-open")
+            return self
+
+        def __exit__(self, *args):
+            assert not self.aio.is_open
+            self.is_open = False
+            lifecycle.append("client-close")
+
+    monkeypatch.setattr(providers.genai, "Client", Client)
+
+    session = providers.ProviderSession(
+        provider="gemini",
+        api_key="gemini-test-key",
+        system_prompt="Be helpful.",
+        temperature=0.2,
+    )
+
+    chunks = [
+        chunk
+        async for chunk in session.stream(
+            model_name="gemini-flash-latest",
+            history=[],
+            message="Hello",
+        )
+    ]
+
+    assert chunks == ["Gemini ", "reply"]
+    assert lifecycle == [
+        "client-open",
+        "async-open",
+        "async-close",
+        "client-close",
+    ]
+
+
+@pytest.mark.asyncio
+async def test_gemini_stream_closes_clients_before_retry(
+    monkeypatch,
+):
+    lifecycle = []
+    delays = []
+    attempts = 0
+
+    class FakeAPIError(Exception):
+        code = 503
+
+    class Chunk:
+        text = "Recovered"
+
+    class AsyncClient:
+        def __init__(self, attempt):
+            self.attempt = attempt
+            self.models = self
+
+        async def __aenter__(self):
+            lifecycle.append(("async-open", self.attempt))
+            return self
+
+        async def __aexit__(self, *args):
+            lifecycle.append(("async-close", self.attempt))
+
+        async def generate_content_stream(self, **kwargs):
+            if self.attempt == 1:
+                raise FakeAPIError()
+
+            async def chunks():
+                yield Chunk()
+
+            return chunks()
+
+    class Client:
+        def __init__(self, *, api_key):
+            nonlocal attempts
+            attempts += 1
+            self.attempt = attempts
+            self.aio = AsyncClient(self.attempt)
+
+        def __enter__(self):
+            lifecycle.append(("client-open", self.attempt))
+            return self
+
+        def __exit__(self, *args):
+            lifecycle.append(("client-close", self.attempt))
+
+    async def fake_sleep(delay):
+        delays.append(delay)
+
+    monkeypatch.setattr(
+        providers.gemini_errors,
+        "APIError",
+        FakeAPIError,
+    )
+    monkeypatch.setattr(providers.genai, "Client", Client)
+    monkeypatch.setattr(providers.asyncio, "sleep", fake_sleep)
+
+    session = providers.ProviderSession(
+        provider="gemini",
+        api_key="gemini-test-key",
+        system_prompt="Be helpful.",
+        temperature=0.2,
+    )
+
+    chunks = [
+        chunk
+        async for chunk in session.stream(
+            model_name="gemini-flash-latest",
+            history=[],
+            message="Hello",
+        )
+    ]
+
+    assert chunks == ["Recovered"]
+    assert delays == [1]
+    assert lifecycle == [
+        ("client-open", 1),
+        ("async-open", 1),
+        ("async-close", 1),
+        ("client-close", 1),
+        ("client-open", 2),
+        ("async-open", 2),
+        ("async-close", 2),
+        ("client-close", 2),
+    ]
+
+
+@pytest.mark.asyncio
+async def test_gemini_stream_closes_clients_on_cancellation(
+    monkeypatch,
+):
+    lifecycle = []
+    waiting = asyncio.Event()
+
+    class Chunk:
+        text = "First chunk"
+
+    class AsyncClient:
+        def __init__(self):
+            self.models = self
+
+        async def __aenter__(self):
+            lifecycle.append("async-open")
+            return self
+
+        async def __aexit__(self, *args):
+            lifecycle.append("async-close")
+
+        async def generate_content_stream(self, **kwargs):
+            async def chunks():
+                yield Chunk()
+                waiting.set()
+                await asyncio.Event().wait()
+
+            return chunks()
+
+    class Client:
+        def __init__(self, *, api_key):
+            self.aio = AsyncClient()
+
+        def __enter__(self):
+            lifecycle.append("client-open")
+            return self
+
+        def __exit__(self, *args):
+            lifecycle.append("client-close")
+
+    monkeypatch.setattr(providers.genai, "Client", Client)
+
+    session = providers.ProviderSession(
+        provider="gemini",
+        api_key="gemini-test-key",
+        system_prompt="Be helpful.",
+        temperature=0.2,
+    )
+
+    async def consume():
+        async for _ in session.stream(
+            model_name="gemini-flash-latest",
+            history=[],
+            message="Hello",
+        ):
+            pass
+
+    task = asyncio.create_task(consume())
+    await waiting.wait()
+    task.cancel()
+
+    with pytest.raises(asyncio.CancelledError):
+        await task
+
+    assert lifecycle == [
+        "client-open",
+        "async-open",
+        "async-close",
+        "client-close",
+    ]
 
 
 def test_anthropic_provider_uses_messages_response(monkeypatch):

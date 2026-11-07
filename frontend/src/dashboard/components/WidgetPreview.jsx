@@ -36,18 +36,11 @@ export default function WidgetPreview({
     return null;
   }
 
-  const darkTheme =
-    settings.theme === "dark";
-
   const previewBackground =
-    darkTheme
-      ? "#111827"
-      : settings.background_color;
+    settings.background_color;
 
   const previewText =
-    darkTheme
-      ? "#f8fafc"
-      : settings.text_color;
+    settings.text_color;
 
   return (
     <div className="widget-preview-stage">
@@ -135,15 +128,23 @@ export default function WidgetPreview({
               </span>
             </div>
 
-            {settings.show_new_chat && (
+          </header>
+
+          {settings.show_new_chat && (
+            <div className="widget-preview__toolbar">
               <button
                 type="button"
-                title="New chat"
+                style={{
+                  color:
+                    settings.new_chat_button_text_color,
+                  background:
+                    settings.new_chat_button_background_color,
+                }}
               >
-                +
+                New chat
               </button>
-            )}
-          </header>
+            </div>
+          )}
 
           <div className="widget-preview__messages">
             <div className="widget-preview__message-row">
@@ -153,9 +154,7 @@ export default function WidgetPreview({
                   background:
                     settings.assistant_bubble_color,
                   color:
-                    darkTheme
-                      ? "#111827"
-                      : settings.text_color,
+                    settings.text_color,
                 }}
               >
                 {
@@ -195,9 +194,7 @@ export default function WidgetPreview({
                   background:
                     settings.assistant_bubble_color,
                   color:
-                    darkTheme
-                      ? "#111827"
-                      : settings.text_color,
+                    settings.text_color,
                 }}
               >
                 Of course. What would
@@ -231,12 +228,26 @@ export default function WidgetPreview({
               className="widget-preview__input"
               style={{
                 color:
-                  darkTheme
-                    ? "#94a3b8"
-                    : "#94a3b8",
+                  settings.message_input_text_color,
+                caretColor:
+                  settings.message_input_text_color,
               }}
             >
-              {settings.placeholder}
+              <textarea
+                rows={1}
+                readOnly
+                placeholder={
+                  settings.placeholder
+                }
+                style={{
+                  color:
+                    settings.message_input_text_color,
+                  caretColor:
+                    settings.message_input_text_color,
+                  "--preview-input-color":
+                    settings.message_input_text_color,
+                }}
+              />
 
               <button
                 type="button"

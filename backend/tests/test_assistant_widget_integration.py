@@ -173,6 +173,18 @@ async def test_get_default_widget_settings(
     assert widget["show_edit"] is True
     assert widget["show_regenerate"] is True
     assert widget["show_new_chat"] is True
+    assert (
+        widget["message_input_text_color"]
+        == "#1e293b"
+    )
+    assert (
+        widget["new_chat_button_text_color"]
+        == "#1e293b"
+    )
+    assert (
+        widget["new_chat_button_background_color"]
+        == "#ffffff"
+    )
 
 
 @pytest.mark.asyncio
@@ -204,6 +216,9 @@ async def test_update_widget_settings(
             ),
             "position": "bottom-left",
             "primary_color": "#112233",
+            "message_input_text_color": "#aabbcc",
+            "new_chat_button_text_color": "#ddeeff",
+            "new_chat_button_background_color": "#223344",
             "font_size": 16,
             "widget_width": 420,
             "show_timestamps": True,
@@ -232,6 +247,18 @@ async def test_update_widget_settings(
     assert widget["font_size"] == 16
     assert widget["widget_width"] == 420
     assert widget["show_timestamps"] is True
+    assert (
+        widget["message_input_text_color"]
+        == "#aabbcc"
+    )
+    assert (
+        widget["new_chat_button_text_color"]
+        == "#ddeeff"
+    )
+    assert (
+        widget["new_chat_button_background_color"]
+        == "#223344"
+    )
 
 
 @pytest.mark.asyncio
@@ -285,6 +312,53 @@ async def test_widget_update_persists(
         widget["background_color"]
         == "#111111"
     )
+    assert (
+        widget["message_input_text_color"]
+        == "#f8fafc"
+    )
+    assert (
+        widget["new_chat_button_text_color"]
+        == "#f8fafc"
+    )
+    assert (
+        widget["new_chat_button_background_color"]
+        == "#111111"
+    )
+
+
+@pytest.mark.asyncio
+async def test_widget_control_colors_save_and_reload(
+    client,
+):
+    _, access_token = (
+        await create_authenticated_user(client)
+    )
+    assistant_id = await get_default_assistant_id(
+        client,
+        access_token,
+    )
+    colors = {
+        "message_input_text_color": "#abcdef",
+        "new_chat_button_text_color": "#123456",
+        "new_chat_button_background_color": "#fedcba",
+    }
+
+    patch_response = await client.patch(
+        f"/api/v1/assistants/{assistant_id}/widget",
+        headers=auth_headers(access_token),
+        json=colors,
+    )
+    get_response = await client.get(
+        f"/api/v1/assistants/{assistant_id}/widget",
+        headers=auth_headers(access_token),
+    )
+
+    assert patch_response.status_code == 200
+    assert get_response.status_code == 200
+
+    for field_name, color in colors.items():
+        assert patch_response.json()[field_name] == color
+        assert get_response.json()[field_name] == color
 
 
 @pytest.mark.asyncio
@@ -313,6 +387,36 @@ async def test_widget_rejects_invalid_color(
         json={
             "primary_color": "not-a-color",
         },
+    )
+
+    assert response.status_code == 422
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    "field_name",
+    (
+        "message_input_text_color",
+        "new_chat_button_text_color",
+        "new_chat_button_background_color",
+    ),
+)
+async def test_widget_rejects_invalid_control_colors(
+    client,
+    field_name,
+):
+    _, access_token = (
+        await create_authenticated_user(client)
+    )
+    assistant_id = await get_default_assistant_id(
+        client,
+        access_token,
+    )
+
+    response = await client.patch(
+        f"/api/v1/assistants/{assistant_id}/widget",
+        headers=auth_headers(access_token),
+        json={field_name: "invalid"},
     )
 
     assert response.status_code == 422

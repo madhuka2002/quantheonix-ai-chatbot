@@ -54,6 +54,35 @@ function ColorField({
 }
 
 
+function readableTextColor(
+  backgroundColor,
+) {
+  const channels = [
+    backgroundColor.slice(1, 3),
+    backgroundColor.slice(3, 5),
+    backgroundColor.slice(5, 7),
+  ].map((channel) => (
+    Number.parseInt(channel, 16) / 255
+  ));
+
+  const [red, green, blue] =
+    channels.map((channel) => (
+      channel <= 0.04045
+        ? channel / 12.92
+        : ((channel + 0.055) / 1.055) ** 2.4
+    ));
+
+  const luminance =
+    0.2126 * red +
+    0.7152 * green +
+    0.0722 * blue;
+
+  return luminance > 0.179
+    ? "#1e293b"
+    : "#f8fafc";
+}
+
+
 function ToggleField({
   label,
   help,
@@ -189,12 +218,54 @@ export default function CustomizePage({
       nextValue = value;
     }
 
-    setSettings(
-      (current) => ({
+    setSettings((current) => {
+      const nextSettings = {
         ...current,
         [name]: nextValue,
-      }),
-    );
+      };
+
+      if (
+        name !== "background_color" ||
+        !/^#[0-9A-Fa-f]{6}$/.test(
+          nextValue,
+        )
+      ) {
+        return nextSettings;
+      }
+
+      const currentReadable =
+        readableTextColor(
+          current.background_color,
+        );
+      const nextReadable =
+        readableTextColor(nextValue);
+
+      if (
+        current.message_input_text_color
+        === currentReadable
+      ) {
+        nextSettings.message_input_text_color =
+          nextReadable;
+      }
+
+      if (
+        current.new_chat_button_text_color
+        === currentReadable
+      ) {
+        nextSettings.new_chat_button_text_color =
+          nextReadable;
+      }
+
+      if (
+        current.new_chat_button_background_color
+        === current.background_color
+      ) {
+        nextSettings.new_chat_button_background_color =
+          nextValue;
+      }
+
+      return nextSettings;
+    });
 
     setSuccessMessage("");
   }
@@ -247,6 +318,15 @@ export default function CustomizePage({
 
       text_color:
         settings.text_color,
+
+      message_input_text_color:
+        settings.message_input_text_color,
+
+      new_chat_button_text_color:
+        settings.new_chat_button_text_color,
+
+      new_chat_button_background_color:
+        settings.new_chat_button_background_color,
 
       assistant_bubble_color:
         settings.assistant_bubble_color,
@@ -597,6 +677,42 @@ export default function CustomizePage({
                 name="user_bubble_color"
                 value={
                   settings.user_bubble_color
+                }
+                onChange={
+                  handleFieldChange
+                }
+              />
+
+              <ColorField
+                label="Message input text"
+                help="Text, placeholder and caret color in the message input."
+                name="message_input_text_color"
+                value={
+                  settings.message_input_text_color
+                }
+                onChange={
+                  handleFieldChange
+                }
+              />
+
+              <ColorField
+                label="New chat button text"
+                help="Label color for the New chat button."
+                name="new_chat_button_text_color"
+                value={
+                  settings.new_chat_button_text_color
+                }
+                onChange={
+                  handleFieldChange
+                }
+              />
+
+              <ColorField
+                label="New chat button background"
+                help="Fill color for the New chat button."
+                name="new_chat_button_background_color"
+                value={
+                  settings.new_chat_button_background_color
                 }
                 onChange={
                   handleFieldChange

@@ -94,6 +94,27 @@ class AssistantWidgetSettings(
         server_default="#1e293b",
     )
 
+    message_input_text_color: Mapped[str | None] = (
+        mapped_column(
+            String(20),
+            nullable=True,
+        )
+    )
+
+    new_chat_button_text_color: Mapped[str | None] = (
+        mapped_column(
+            String(20),
+            nullable=True,
+        )
+    )
+
+    new_chat_button_background_color: Mapped[
+        str | None
+    ] = mapped_column(
+        String(20),
+        nullable=True,
+    )
+
     assistant_bubble_color: Mapped[str] = (
         mapped_column(
             String(20),

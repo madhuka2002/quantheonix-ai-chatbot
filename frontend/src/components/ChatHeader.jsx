@@ -1,14 +1,20 @@
 function ChatHeader({
   conversationId,
+  assistantName,
   isLoading,
   isResetting,
   onNewChat,
+  onOpenHistory,
 }) {
   return (
     <header className="chat__header">
       <div className="chat__heading">
         <div>
-          <h1>Quantheonix AI Assistant</h1>
+          <span className="chat__eyebrow">
+            Testing assistant
+          </span>
+
+          <h1>{assistantName}</h1>
 
           <p>
             {conversationId
@@ -17,14 +23,24 @@ function ChatHeader({
           </p>
         </div>
 
-        <button
-          className="chat__reset-button"
-          type="button"
-          onClick={onNewChat}
-          disabled={isLoading || isResetting}
-        >
-          {isResetting ? "Resetting..." : "New Chat"}
-        </button>
+        <div className="chat__header-actions">
+          <button
+            className="chat__history-button"
+            type="button"
+            onClick={onOpenHistory}
+          >
+            History
+          </button>
+
+          <button
+            className="chat__reset-button"
+            type="button"
+            onClick={onNewChat}
+            disabled={isLoading || isResetting}
+          >
+            {isResetting ? "Resetting..." : "New chat"}
+          </button>
+        </div>
       </div>
     </header>
   );

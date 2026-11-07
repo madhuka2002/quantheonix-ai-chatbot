@@ -12,6 +12,9 @@ from app.schemas.public_widget import (
     PublicAssistantConfigResponse,
     PublicWidgetSettingsResponse,
 )
+from app.services.widget_color_defaults import (
+    resolved_widget_control_colors,
+)
 
 
 class PublicWidgetNotFoundError(Exception):
@@ -60,6 +63,10 @@ class PublicWidgetService:
         if widget is None:
             raise PublicWidgetNotFoundError()
 
+        control_colors = resolved_widget_control_colors(
+            widget,
+        )
+
         return PublicAssistantConfigResponse(
             assistant_id=assistant.id,
             display_name=assistant.display_name,
@@ -71,6 +78,21 @@ class PublicWidgetService:
                 secondary_color=widget.secondary_color,
                 background_color=widget.background_color,
                 text_color=widget.text_color,
+                message_input_text_color=(
+                    control_colors[
+                        "message_input_text_color"
+                    ]
+                ),
+                new_chat_button_text_color=(
+                    control_colors[
+                        "new_chat_button_text_color"
+                    ]
+                ),
+                new_chat_button_background_color=(
+                    control_colors[
+                        "new_chat_button_background_color"
+                    ]
+                ),
                 assistant_bubble_color=(
                     widget.assistant_bubble_color
                 ),

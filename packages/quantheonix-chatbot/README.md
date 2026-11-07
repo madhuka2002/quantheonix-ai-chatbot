@@ -204,20 +204,13 @@ Unauthorized origins are rejected by the backend.
 
 ## CORS
 
-Allowed Domains and CORS are separate protections.
+The public configuration and chat endpoints use a credential-free widget CORS
+policy. Add or remove the website hostname in **Allowed Domains**; changes take
+effect when saved and do not require a `CORS_ORIGINS` edit or backend redeploy.
 
-Allowed Domains decide which websites may use an assistant.
-
-CORS decides which browser origins may read API responses.
-
-For development you may need origins such as:
-
-```text
-http://localhost:5173
-http://localhost:5174
-```
-
-Production deployments should use the real frontend origin.
+`CORS_ORIGINS` remains the allowlist for the Quantheonix dashboard and other
+authenticated browser API clients. It does not grant access to an assistant's
+public widget endpoints.
 
 ## Environment Variables
 
@@ -271,8 +264,7 @@ Make sure:
 
 1. the assistant is active,
 2. `localhost` exists in Allowed Domains,
-3. the frontend origin is allowed by CORS,
-4. the backend is reachable from the browser.
+3. the backend is reachable from the browser.
 
 ## React Support
 

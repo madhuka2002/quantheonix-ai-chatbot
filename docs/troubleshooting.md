@@ -274,7 +274,11 @@ Symptoms may include browser messages such as:
 blocked by CORS policy
 ```
 
-Check:
+For the public npm widget, first add the website hostname to the assistant's
+**Allowed Domains** page. Do not add customer widget sites to `CORS_ORIGINS`;
+saved domain changes apply without restarting or rebuilding the backend.
+
+For the dashboard or another authenticated browser API client, check:
 
 ```env
 CORS_ORIGINS=["http://localhost:5173"]
@@ -292,7 +296,7 @@ add it:
 CORS_ORIGINS=["http://localhost:5173","http://127.0.0.1:5173"]
 ```
 
-For production:
+For a separately hosted production dashboard:
 
 ```env
 CORS_ORIGINS=["https://your-domain.example"]

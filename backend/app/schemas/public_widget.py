@@ -14,6 +14,9 @@ class PublicWidgetSettingsResponse(
     secondary_color: str
     background_color: str
     text_color: str
+    message_input_text_color: str
+    new_chat_button_text_color: str
+    new_chat_button_background_color: str
 
     assistant_bubble_color: str
     user_bubble_color: str

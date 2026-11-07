@@ -52,7 +52,7 @@ Important backend variables:
 | `PROVIDER_KEY_ENCRYPTION_SECRET` | Encrypts assistant-owned Gemini/OpenAI/Anthropic keys. Keep it stable and separate from JWT. |
 | `GEMINI_API_KEY` | Optional fallback for explicitly grandfathered Gemini assistants without an assistant-owned key. New assistants cannot inherit it. |
 | `GEMINI_MODEL` / `GEMINI_TEMPERATURE` | Legacy Gemini fallback defaults. |
-| `CORS_ORIGINS` | JSON list of trusted browser origins. |
+| `CORS_ORIGINS` | JSON list of trusted dashboard and authenticated browser API origins. Public widget sites are managed per assistant under **Allowed Domains**. |
 | `RATE_LIMIT_*` | Authentication and chat rate-limit settings. |
 
 Generate independent random values for JWT and provider-key encryption:

@@ -1,8 +1,10 @@
 import logging
+import re
 import time
 from uuid import uuid4
 
 from fastapi import Request
+from fastapi.middleware.cors import CORSMiddleware
 from starlette.middleware.base import (
     BaseHTTPMiddleware,
     RequestResponseEndpoint,
@@ -10,6 +12,12 @@ from starlette.middleware.base import (
 from starlette.responses import (
     JSONResponse,
     Response,
+)
+from starlette.types import (
+    ASGIApp,
+    Receive,
+    Scope,
+    Send,
 )
 from app.core.config import settings
 from app.core.exception_handlers import create_error_content
@@ -19,6 +27,81 @@ from app.core.rate_limiter import (
 )
 
 logger = logging.getLogger(__name__)
+
+
+class RouteAwareCORSMiddleware:
+    """Apply a separate, credential-free policy to public widget routes."""
+
+    _public_config_path = re.compile(
+        r"^/api/v1/public/assistants/[^/]+/config$"
+    )
+    _public_chat_path = "/api/v1/public/chat/stream"
+
+    def __init__(
+        self,
+        app: ASGIApp,
+        *,
+        dashboard_origins: list[str],
+    ) -> None:
+        common_options = {
+            "allow_origins": ["*"],
+            "allow_credentials": False,
+            "allow_headers": [
+                "Accept",
+                "Content-Type",
+            ],
+            "expose_headers": [
+                "X-Request-ID",
+            ],
+        }
+
+        self._public_config_cors = CORSMiddleware(
+            app,
+            allow_methods=["GET"],
+            **common_options,
+        )
+        self._public_chat_cors = CORSMiddleware(
+            app,
+            allow_methods=["POST"],
+            **common_options,
+        )
+        self._dashboard_cors = CORSMiddleware(
+            app,
+            allow_origins=dashboard_origins,
+            allow_credentials=True,
+            allow_methods=["*"],
+            allow_headers=["*"],
+            expose_headers=["X-Request-ID"],
+        )
+
+    async def __call__(
+        self,
+        scope: Scope,
+        receive: Receive,
+        send: Send,
+    ) -> None:
+        if scope["type"] != "http":
+            await self._dashboard_cors(
+                scope,
+                receive,
+                send,
+            )
+            return
+
+        path = scope.get("path", "")
+
+        if self._public_config_path.fullmatch(path):
+            cors_app = self._public_config_cors
+        elif path == self._public_chat_path:
+            cors_app = self._public_chat_cors
+        else:
+            cors_app = self._dashboard_cors
+
+        await cors_app(
+            scope,
+            receive,
+            send,
+        )
 
 
 class RequestContextMiddleware(

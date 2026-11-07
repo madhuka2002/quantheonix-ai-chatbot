@@ -405,16 +405,6 @@ export function useChat(
           signal:
             abortController.signal,
 
-          onStart(event) {
-            if (
-              event.conversation_id
-            ) {
-              setConversationId(
-                event.conversation_id,
-              );
-            }
-          },
-
           onChunk(text) {
             if (!text) {
               return;
@@ -438,6 +428,11 @@ export function useChat(
           },
 
           onDone(event) {
+            /*
+             * The backend commits a new conversation before
+             * emitting done, so it is now safe to persist and
+             * restore this ID.
+             */
             if (
               event.conversation_id
             ) {
@@ -681,16 +676,6 @@ export function useChat(
           signal:
             abortController.signal,
 
-          onStart(event) {
-            if (
-              event.conversation_id
-            ) {
-              setConversationId(
-                event.conversation_id,
-              );
-            }
-          },
-
           onChunk(text) {
             if (!text) {
               return;
@@ -840,16 +825,6 @@ export function useChat(
           message: cleanedContent,
           signal:
             abortController.signal,
-
-          onStart(event) {
-            if (
-              event.conversation_id
-            ) {
-              setConversationId(
-                event.conversation_id,
-              );
-            }
-          },
 
           onChunk(text) {
             if (!text) {
