@@ -380,55 +380,25 @@ Gemini API
 
 ---
 
-# 13. HTTP 401 Unauthorized
+# 13. Public Widget Is Rejected
 
-A `401` generally means the access token is missing, expired, or invalid.
+The published `QuantheonixChat` component uses public assistant endpoints and
+accepts `apiUrl` and `assistantId`; it does not accept dashboard access-token
+props. A `403` usually means the website hostname is missing from the selected
+assistant's Allowed Domains. A `404` usually means the assistant ID is wrong or
+the assistant is inactive.
 
-If using a fixed token:
-
-```jsx
-<QuantheonixChat
-  apiUrl="http://localhost:8000"
-  accessToken={accessToken}
-/>
-```
-
-For refresh support, use:
-
-```jsx
-getAccessToken={getAccessToken}
-```
-
-The widget can request a new access token after receiving `401` and retry the request.
-
-Check that the host application's refresh flow is working correctly.
+Confirm that the customer website uses the actual package contract documented
+in `packages/quantheonix-chatbot/README.md`.
 
 ---
 
-# 14. Token Refresh Fails
+# 14. Dashboard Authentication Fails
 
-Check that:
-
-- refresh credentials exist
-- the refresh endpoint is reachable
-- the browser is sending the required credentials
-- CORS is configured correctly
-- the refresh token is not expired
-- the callback returns the new access token
-
-Example:
-
-```jsx
-const response = await fetch(
-  `${apiUrl}/api/v1/auth/refresh`,
-  {
-    method: "POST",
-    credentials: "include",
-  },
-);
-```
-
-If the callback returns `null`, the widget cannot retry authenticated chat successfully.
+Dashboard `401` responses mean the stored dashboard access token is missing,
+expired, or invalid. Log in again and verify the backend JWT configuration and
+the exact dashboard origin in `CORS_ORIGINS`. Dashboard authentication is
+separate from the public npm widget.
 
 ---
 

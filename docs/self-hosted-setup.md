@@ -1,689 +1,145 @@
-# Quantheonix Self-Hosted Backend Setup
+# Quantheonix self-hosted server setup
 
-This guide explains how to deploy the Quantheonix AI Chatbot backend using Docker Compose and PostgreSQL.
+The self-hosted stack runs the React dashboard, FastAPI, and PostgreSQL. Only
+the dashboard is published to the host. Its Nginx server proxies `/api/` to the
+private FastAPI service and disables buffering for streaming chat responses.
 
-The self-hosted deployment provides:
+## Requirements
 
-- FastAPI backend
-- PostgreSQL database
-- automatic Alembic migrations
-- Gemini integration
-- JWT authentication
-- rate limiting
-- persistent database storage
-- health checks
+Install Git and Docker Desktop or Docker Engine with Docker Compose. Run all
+commands below from the repository root in PowerShell.
 
----
+Confirm Docker is available:
 
-# Architecture
-
-```text
-React Application
-       |
-       | HTTP / Streaming
-       v
-Quantheonix Backend
-       |
-       +----------------------+
-       |                      |
-       v                      v
-PostgreSQL                Gemini API
-```
-
-Docker Compose manages the backend and PostgreSQL services.
-
----
-
-# Requirements
-
-Install:
-
-- Git
-- Docker
-- Docker Compose
-
-You also need:
-
-- a Gemini API key
-- a strong PostgreSQL password
-- a strong JWT signing secret
-
-Verify Docker:
-
-```bash
-docker --version
+```powershell
+docker version
 docker compose version
 ```
 
-Make sure Docker Desktop or the Docker daemon is running before continuing.
+## Configure the server
 
----
+Create the ignored server environment file:
 
-# Step 1 — Clone Quantheonix
-
-```bash
-git clone https://github.com/madhuka2002/quantheonix-ai-chatbot.git
-cd quantheonix-ai-chatbot
+```powershell
+Copy-Item .env.selfhosted.example .env.selfhosted
+notepad .env.selfhosted
 ```
 
-Verify the repository:
+Set non-empty, private values for `POSTGRES_PASSWORD`, `JWT_SECRET_KEY`, and
+`PROVIDER_KEY_ENCRYPTION_SECRET`. Generate independent JWT and provider-key
+encryption secrets:
 
-```bash
-git status
+```powershell
+py -c "import secrets; print(secrets.token_urlsafe(64))"
+py -c "import secrets; print(secrets.token_urlsafe(64))"
 ```
 
-A new clone should normally report a clean working tree.
-
----
-
-# Step 2 — Create the Environment File
-
-Copy:
-
-```bash
-cp .env.selfhosted.example .env.selfhosted
-```
-
-The resulting file:
-
-```text
-.env.selfhosted
-```
-
-contains the private deployment configuration.
-
-Do not commit it.
-
----
-
-# Step 3 — Configure PostgreSQL
-
-Open:
-
-```text
-.env.selfhosted
-```
-
-Configure:
+Keep these dashboard defaults when the HTTPS reverse proxy runs on the Docker
+host:
 
 ```env
-POSTGRES_DB=quantheonix_chatbot
-POSTGRES_USER=quantheonix_user
-POSTGRES_PASSWORD=replace_with_a_strong_database_password
+DASHBOARD_BIND_ADDRESS=127.0.0.1
+DASHBOARD_PORT=8080
 ```
 
-You may use another database name and username.
+Keep `PROVIDER_KEY_ENCRYPTION_SECRET` stable so stored assistant keys remain
+decryptable. `GEMINI_API_KEY` is optional and acts only as a fallback for
+explicitly grandfathered Gemini assistants. Newly registered users and newly
+created assistants must save their own provider key in AI Settings.
 
-Example:
+Use a URL-safe PostgreSQL password because Compose places it in the backend
+database URL. `CORS_ORIGINS=[]` is sufficient for the same-origin dashboard;
+add only trusted origins for other browser applications.
 
-```env
-POSTGRES_DB=quantheonix_chatbot_v1
-POSTGRES_USER=quantheonix_user
-POSTGRES_PASSWORD=your_private_password
+## Validate and start
+
+Render the final configuration before creating containers:
+
+```powershell
+docker compose --env-file .env.selfhosted -f compose.selfhosted.yaml config
 ```
 
-The Compose configuration automatically uses these values for the backend database connection.
+Compose rejects blank required secrets. Start the stack and wait for all health
+checks:
 
----
-
-# Step 4 — Configure Gemini
-
-Add your Gemini API key:
-
-```env
-GEMINI_API_KEY=replace_with_your_gemini_api_key
+```powershell
+docker compose --env-file .env.selfhosted -f compose.selfhosted.yaml up --build --wait
+docker compose --env-file .env.selfhosted -f compose.selfhosted.yaml ps
 ```
 
-Configure the model:
+The backend waits for PostgreSQL and runs `alembic upgrade head` before
+Uvicorn starts. Verify the complete dashboard-to-API path:
 
-```env
-GEMINI_MODEL=gemini-flash-latest
-GEMINI_TEMPERATURE=0.7
+```powershell
+Invoke-RestMethod http://127.0.0.1:8080/api/v1/health
+Invoke-WebRequest -UseBasicParsing http://127.0.0.1:8080/
 ```
 
-The Gemini API key stays on the server.
+View startup and migration logs without displaying environment values:
 
-Never place it in the React application.
-
----
-
-# Step 5 — Configure JWT
-
-Generate a strong secret:
-
-```bash
-python -c "import secrets; print(secrets.token_urlsafe(64))"
+```powershell
+docker compose --env-file .env.selfhosted -f compose.selfhosted.yaml logs --tail 100 backend
 ```
 
-Copy the generated value into:
+## HTTPS reverse proxy
 
-```env
-JWT_SECRET_KEY=YOUR_GENERATED_SECRET
-```
+Terminate TLS at a reverse proxy on the server and forward the public hostname
+to `http://127.0.0.1:8080`. An Nginx location can use:
 
-Example configuration:
-
-```env
-JWT_ALGORITHM=HS256
-ACCESS_TOKEN_EXPIRE_MINUTES=30
-REFRESH_TOKEN_EXPIRE_DAYS=7
-```
-
-Never commit the real JWT secret.
-
----
-
-# Step 6 — Configure CORS
-
-For a local Vite application:
-
-```env
-CORS_ORIGINS=["http://localhost:5173"]
-```
-
-If both localhost forms are required:
-
-```env
-CORS_ORIGINS=["http://localhost:5173","http://127.0.0.1:5173"]
-```
-
-For production:
-
-```env
-CORS_ORIGINS=["https://your-domain.example"]
-```
-
-Multiple production applications can be configured:
-
-```env
-CORS_ORIGINS=["https://app.example.com","https://admin.example.com"]
-```
-
-The entries must be normal URL strings.
-
-Do not use Markdown links.
-
----
-
-# Step 7 — Validate Compose
-
-Before starting containers:
-
-```bash
-docker compose \
-  --env-file .env.selfhosted \
-  -f compose.selfhosted.yaml \
-  config >/dev/null && echo "Compose configuration OK"
-```
-
-Expected:
-
-```text
-Compose configuration OK
-```
-
-If this fails, correct the environment or YAML configuration before continuing.
-
----
-
-# Step 8 — Start Quantheonix
-
-Run:
-
-```bash
-docker compose \
-  --env-file .env.selfhosted \
-  -f compose.selfhosted.yaml \
-  up -d --build
-```
-
-The first build can take several minutes.
-
-Docker will:
-
-1. download PostgreSQL if necessary
-2. build the backend image
-3. create the PostgreSQL volume
-4. start PostgreSQL
-5. wait for PostgreSQL health
-6. start the backend
-7. apply Alembic migrations
-8. launch Uvicorn
-
----
-
-# Step 9 — Check Containers
-
-Run:
-
-```bash
-docker compose \
-  --env-file .env.selfhosted \
-  -f compose.selfhosted.yaml \
-  ps
-```
-
-A successful installation should show both:
-
-```text
-quantheonix-postgres
-quantheonix-backend
-```
-
-in healthy/running states.
-
----
-
-# Step 10 — Check Backend Logs
-
-```bash
-docker compose \
-  --env-file .env.selfhosted \
-  -f compose.selfhosted.yaml \
-  logs backend
-```
-
-On a new database you should see Alembic migrations running before the backend starts.
-
-The sequence should resemble:
-
-```text
-Applying database migrations...
-...
-Starting Quantheonix backend...
-...
-Application startup complete.
-```
-
----
-
-# Migration Safety
-
-The self-hosted backend starts with:
-
-```sh
-set -e
-```
-
-before executing the migration command.
-
-Conceptually:
-
-```sh
-set -e
-
-alembic upgrade head
-
-exec uvicorn main:app \
-  --host 0.0.0.0 \
-  --port 8000
-```
-
-This is intentional.
-
-If:
-
-```bash
-alembic upgrade head
-```
-
-fails, the backend process stops.
-
-Quantheonix should not start normally against a database that failed its required migrations.
-
----
-
-# Step 11 — Health Check
-
-Run:
-
-```bash
-curl http://localhost:8000/api/v1/health
-```
-
-Expected response:
-
-```json
-{
-  "status": "healthy",
-  "service": "Quantheonix AI Chatbot API",
-  "version": "1.0.0",
-  "database": "connected"
+```nginx
+location / {
+    proxy_pass http://127.0.0.1:8080;
+    proxy_http_version 1.1;
+    proxy_set_header Host $host;
+    proxy_set_header X-Real-IP $remote_addr;
+    proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+    proxy_set_header X-Forwarded-Proto $scheme;
+    proxy_buffering off;
+    proxy_read_timeout 3600s;
 }
 ```
 
-This confirms that:
+Expose only the HTTPS reverse proxy through the server firewall. PostgreSQL and
+FastAPI have no published host ports in `compose.selfhosted.yaml`.
 
-- FastAPI is running
-- the API is reachable
-- PostgreSQL is reachable
+## Stop and restart
 
----
+Stop containers while preserving PostgreSQL data:
 
-# Step 12 — Connect the React Widget
-
-Install:
-
-```bash
-npm install @quantheonix/chatbot
+```powershell
+docker compose --env-file .env.selfhosted -f compose.selfhosted.yaml down
 ```
 
-Import:
+Restart them:
 
-```jsx
-import {
-  QuantheonixChat,
-} from "@quantheonix/chatbot";
-
-import "@quantheonix/chatbot/chatbot.css";
+```powershell
+docker compose --env-file .env.selfhosted -f compose.selfhosted.yaml up --wait
 ```
 
-Use:
+Do not add `--volumes` or `-v` to the server shutdown command.
 
-```jsx
-function App() {
-  return (
-    <QuantheonixChat
-      apiUrl="http://localhost:8000"
-    />
-  );
-}
+## Data-preserving upgrades
 
-export default App;
+The database volume remains explicitly named `quantheonix_postgres_data`.
+Changing `.env.selfhosted` does not rewrite credentials in an already
+initialized PostgreSQL volume. Keep its original database name, user, and
+password unless you deliberately migrate them inside PostgreSQL.
+
+Take and test a database or volume backup using the server's normal backup
+process. Then update in place:
+
+```powershell
+git status --short
+git pull --ff-only
+docker compose --env-file .env.selfhosted -f compose.selfhosted.yaml pull postgres
+docker compose --env-file .env.selfhosted -f compose.selfhosted.yaml up --build --wait
+docker compose --env-file .env.selfhosted -f compose.selfhosted.yaml ps
+Invoke-RestMethod http://127.0.0.1:8080/api/v1/health
 ```
 
----
-
-# Recommended Vite Configuration
-
-Frontend `.env`:
-
-```env
-VITE_CHATBOT_API_URL=http://localhost:8000
-```
-
-Application:
-
-```jsx
-<QuantheonixChat
-  apiUrl={
-    import.meta.env.VITE_CHATBOT_API_URL
-  }
-/>
-```
-
-Restart Vite after changing its environment variables.
-
----
-
-# Authentication Integration
-
-If your application already has an access token:
-
-```jsx
-<QuantheonixChat
-  apiUrl={
-    import.meta.env.VITE_CHATBOT_API_URL
-  }
-  accessToken={
-    localStorage.getItem("access_token")
-  }
-/>
-```
-
-For refresh-token support, provide `getAccessToken`.
-
-Example:
-
-```jsx
-async function getAccessToken({
-  forceRefresh = false,
-} = {}) {
-  if (!forceRefresh) {
-    return localStorage.getItem(
-      "access_token",
-    );
-  }
-
-  const response = await fetch(
-    `${import.meta.env.VITE_CHATBOT_API_URL}/api/v1/auth/refresh`,
-    {
-      method: "POST",
-      credentials: "include",
-    },
-  );
-
-  if (!response.ok) {
-    return null;
-  }
-
-  const data = await response.json();
-
-  localStorage.setItem(
-    "access_token",
-    data.access_token,
-  );
-
-  return data.access_token;
-}
-```
-
-Then:
-
-```jsx
-<QuantheonixChat
-  apiUrl={
-    import.meta.env.VITE_CHATBOT_API_URL
-  }
-  getAccessToken={getAccessToken}
-/>
-```
-
----
-
-# Database Persistence
-
-PostgreSQL data is stored in a Docker volume.
-
-Running:
-
-```bash
-docker compose \
-  --env-file .env.selfhosted \
-  -f compose.selfhosted.yaml \
-  down
-```
-
-stops the services but preserves the database.
-
-Restart:
-
-```bash
-docker compose \
-  --env-file .env.selfhosted \
-  -f compose.selfhosted.yaml \
-  up -d
-```
-
-Your existing database should remain.
-
----
-
-# Resetting the Database
-
-> WARNING: The following operation deletes the PostgreSQL Docker volume and its stored data.
-
-```bash
-docker compose \
-  --env-file .env.selfhosted \
-  -f compose.selfhosted.yaml \
-  down -v
-```
-
-Then:
-
-```bash
-docker compose \
-  --env-file .env.selfhosted \
-  -f compose.selfhosted.yaml \
-  up -d --build
-```
-
-PostgreSQL will initialize again using the current:
-
-```env
-POSTGRES_DB
-POSTGRES_USER
-POSTGRES_PASSWORD
-```
-
-values.
-
-Alembic will then recreate the required schema.
-
----
-
-# Important PostgreSQL Environment Behavior
-
-PostgreSQL initialization variables are primarily used when the database volume is created.
-
-For example, suppose you first start with:
-
-```env
-POSTGRES_PASSWORD=password_a
-```
-
-and PostgreSQL initializes its volume.
-
-Changing the file later to:
-
-```env
-POSTGRES_PASSWORD=password_b
-```
-
-does not automatically rewrite the password stored in the already-initialized database.
-
-This can result in:
-
-```text
-password authentication failed for user
-```
-
-For disposable development/test data, reset the volume:
-
-```bash
-docker compose \
-  --env-file .env.selfhosted \
-  -f compose.selfhosted.yaml \
-  down -v
-```
-
-Do not use this approach on a production database containing data you need to preserve.
-
----
-
-# View Logs
-
-Backend:
-
-```bash
-docker compose \
-  --env-file .env.selfhosted \
-  -f compose.selfhosted.yaml \
-  logs backend
-```
-
-PostgreSQL:
-
-```bash
-docker compose \
-  --env-file .env.selfhosted \
-  -f compose.selfhosted.yaml \
-  logs postgres
-```
-
-Live backend logs:
-
-```bash
-docker compose \
-  --env-file .env.selfhosted \
-  -f compose.selfhosted.yaml \
-  logs -f backend
-```
-
----
-
-# Stop Quantheonix
-
-```bash
-docker compose \
-  --env-file .env.selfhosted \
-  -f compose.selfhosted.yaml \
-  down
-```
-
----
-
-# Rebuild After Code Changes
-
-```bash
-docker compose \
-  --env-file .env.selfhosted \
-  -f compose.selfhosted.yaml \
-  up -d --build
-```
-
----
-
-# Updating from Git
-
-Pull:
-
-```bash
-git pull
-```
-
-Then:
-
-```bash
-docker compose \
-  --env-file .env.selfhosted \
-  -f compose.selfhosted.yaml \
-  up -d --build
-```
-
-Any new Alembic migrations are applied during backend startup.
-
----
-
-# Production Checklist
-
-Before deploying publicly:
-
-- use a strong PostgreSQL password
-- use a randomly generated JWT secret
-- keep Gemini credentials private
-- use HTTPS
-- configure only trusted CORS origins
-- keep rate limiting enabled
-- do not commit `.env.selfhosted`
-- back up PostgreSQL
-- protect the host machine
-- keep Docker updated
-- review backend logs
-- test the health endpoint
-- verify authentication
-- verify token refresh
-- verify chat streaming
-
----
-
-# Troubleshooting
-
-See:
-
-```text
-docs/troubleshooting.md
-```
-
-for solutions to common deployment and configuration problems.
+Compose reuses `quantheonix_postgres_data`, and the backend applies pending
+Alembic migrations before serving requests. Never run `down --volumes`,
+`down -v`, or `docker volume rm quantheonix_postgres_data` during an upgrade.
+
+For local Docker and native hot-reload commands, see
+[run-modes.md](run-modes.md).

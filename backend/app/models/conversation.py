@@ -70,6 +70,13 @@ class Conversation(
         nullable=False,
     )
 
+    provider: Mapped[str] = mapped_column(
+        String(20),
+        nullable=False,
+        default="gemini",
+        server_default="gemini",
+    )
+
     is_active: Mapped[bool] = mapped_column(
         Boolean,
         nullable=False,

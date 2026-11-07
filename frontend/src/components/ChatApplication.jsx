@@ -13,7 +13,9 @@ import {
 } from "../hooks/useConversationHistory";
 
 
-function ChatApplication() {
+function ChatApplication({
+  assistantId = null,
+}) {
   const {
     user,
     logout,
@@ -39,7 +41,7 @@ function ChatApplication() {
     handleEditUserMessage,
     handleRegenerateResponse,
     openConversation,
-  } = useChat();
+  } = useChat(assistantId);
 
   const {
     conversations,

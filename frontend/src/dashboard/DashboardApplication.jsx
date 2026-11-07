@@ -250,6 +250,9 @@ export default function DashboardApplication() {
           onSelectAssistant={
             handleSelectAssistant
           }
+          onNavigate={
+            setActivePage
+          }
         />
       );
     }
@@ -319,7 +322,15 @@ export default function DashboardApplication() {
     ) {
       return (
         <div className="dashboard-chat-page">
-          <ChatApplication />
+          <ChatApplication
+            key={
+              selectedAssistantId ??
+              "default-assistant"
+            }
+            assistantId={
+              selectedAssistantId
+            }
+          />
         </div>
       );
     }

@@ -10,10 +10,48 @@ import FieldHelp
   from "../components/FieldHelp";
 
 
+const PROVIDER_MODELS = {
+  gemini: [
+    "gemini-flash-latest",
+    "gemini-2.5-flash",
+    "gemini-2.5-pro",
+  ],
+  openai: [
+    "gpt-6-luna",
+    "gpt-6.1-terra",
+    "gpt-6-sol",
+  ],
+  anthropic: [
+    "claude-sonnet-5",
+    "claude-fable-5",
+    "claude-opus-5",
+  ],
+};
+
+const PROVIDER_LABELS = {
+  gemini: "Google Gemini",
+  openai: "OpenAI",
+  anthropic: "Anthropic Claude",
+};
+
+
 function createInitialForm(
   assistant,
 ) {
   return {
+    provider:
+      assistant?.provider ?? "gemini",
+
+    provider_api_key: "",
+
+    remove_provider_api_key: false,
+
+    api_key_configured:
+      assistant?.api_key_configured ?? false,
+
+    uses_server_fallback:
+      assistant?.uses_server_fallback ?? false,
+
     system_prompt:
       assistant?.system_prompt ?? "",
 
@@ -121,12 +159,32 @@ export default function AISettingsPage({
       nextValue = value;
     }
 
-    setForm(
-      (current) => ({
+    setForm((current) => {
+      if (name === "provider") {
+        return {
+          ...current,
+          provider: nextValue,
+          model_name:
+            PROVIDER_MODELS[nextValue][0],
+          temperature:
+            nextValue === "anthropic"
+              ? Math.min(
+                  current.temperature,
+                  1,
+                )
+              : current.temperature,
+          provider_api_key: "",
+          remove_provider_api_key: false,
+          api_key_configured: false,
+          uses_server_fallback: false,
+        };
+      }
+
+      return {
         ...current,
         [name]: nextValue,
-      }),
-    );
+      };
+    });
 
     setSuccessMessage("");
   }
@@ -151,7 +209,13 @@ export default function AISettingsPage({
     setError("");
     setSuccessMessage("");
 
+    const providerChanged =
+      form.provider !==
+      savedForm.provider;
+
     const payload = {
+      provider: form.provider,
+
       system_prompt:
         form.system_prompt.trim() ||
         null,
@@ -174,6 +238,15 @@ export default function AISettingsPage({
         form.is_active,
     };
 
+    if (form.provider_api_key.trim()) {
+      payload.provider_api_key =
+        form.provider_api_key.trim();
+    }
+
+    if (form.remove_provider_api_key) {
+      payload.remove_provider_api_key = true;
+    }
+
     try {
       const updatedAssistant =
         await updateAssistant(
@@ -194,8 +267,19 @@ export default function AISettingsPage({
         nextForm,
       );
 
+      if (providerChanged) {
+        window.localStorage.removeItem(
+          `quantheonix_conversation_id:${assistant.id}`,
+        );
+        window.localStorage.removeItem(
+          `quantheonix_chat_messages:${assistant.id}`,
+        );
+      }
+
       setSuccessMessage(
-        "AI settings saved successfully.",
+        providerChanged
+          ? "AI settings saved. Test Chat will start a new conversation; earlier history remains available."
+          : "AI settings saved successfully.",
       );
 
       if (
@@ -297,7 +381,7 @@ export default function AISettingsPage({
           <section className="ai-settings-card">
             <div className="ai-settings-card__heading">
               <span>
-                01
+                02
               </span>
 
               <div>
@@ -357,7 +441,7 @@ export default function AISettingsPage({
           <section className="ai-settings-card">
             <div className="ai-settings-card__heading">
               <span>
-                02
+                03
               </span>
 
               <div>
@@ -425,7 +509,11 @@ export default function AISettingsPage({
                     type="range"
                     name="temperature"
                     min="0"
-                    max="2"
+                    max={
+                      form.provider === "anthropic"
+                        ? "1"
+                        : "2"
+                    }
                     step="0.1"
                     value={
                       form.temperature
@@ -461,21 +549,21 @@ export default function AISettingsPage({
           </section>
 
 
-          <section className="ai-settings-card">
+          <section className="ai-settings-card ai-settings-provider-card">
             <div className="ai-settings-card__heading">
               <span>
-                03
+                01
               </span>
 
               <div>
                 <h3>
-                  AI model
+                  Provider and credentials
                 </h3>
 
                 <p>
-                  Choose which model
-                  powers this
-                  assistant.
+                  Choose the AI service,
+                  exact model ID and
+                  assistant-owned key.
                 </p>
               </div>
             </div>
@@ -483,24 +571,136 @@ export default function AISettingsPage({
 
             <label className="widget-field">
               <span className="widget-field__label">
-                Model name
+                AI provider
 
                 <FieldHelp
-                  text="The backend model identifier used for this assistant. The configured AI provider must support this model."
+                  text="Provider calls run in FastAPI. Provider keys are encrypted on the server and never returned to this browser."
+                />
+              </span>
+
+              <select
+                name="provider"
+                value={form.provider}
+                onChange={handleFieldChange}
+              >
+                <option value="gemini">
+                  Google Gemini
+                </option>
+
+                <option value="openai">
+                  OpenAI
+                </option>
+
+                <option value="anthropic">
+                  Anthropic Claude
+                </option>
+              </select>
+            </label>
+
+
+            <label className="widget-field">
+              <span className="widget-field__label">
+                Model ID
+
+                <FieldHelp
+                  text="Choose a suggestion or enter the exact model ID enabled for your provider account."
                 />
               </span>
 
               <input
                 type="text"
                 name="model_name"
+                list="provider-model-suggestions"
                 value={
                   form.model_name
                 }
                 onChange={
                   handleFieldChange
                 }
-                placeholder="gemini-flash-latest"
                 required
+                autoComplete="off"
+              />
+
+              <datalist id="provider-model-suggestions">
+                {PROVIDER_MODELS[
+                  form.provider
+                ].map((modelName) => (
+                  <option
+                    key={modelName}
+                    value={modelName}
+                  >
+                    {modelName}
+                  </option>
+                ))}
+              </datalist>
+            </label>
+
+
+            <label className="widget-field">
+              <span className="widget-field__label">
+                Provider API key
+
+                <FieldHelp
+                  text="Leave blank to keep the current key. Enter a new value to add or replace it. The value is write-only."
+                />
+              </span>
+
+              <div
+                className={
+                  form.api_key_configured
+                    ? "ai-key-status ai-key-status--configured"
+                    : "ai-key-status"
+                }
+              >
+                {form.provider_api_key.trim()
+                  ? "New key ready to save"
+                  : form.api_key_configured
+                    ? "A key is saved for this assistant"
+                    : form.uses_server_fallback
+                      ? "Using the legacy server Gemini fallback"
+                      : "No key saved — add one before using chat"}
+              </div>
+
+              <input
+                type="password"
+                name="provider_api_key"
+                value={form.provider_api_key}
+                onChange={handleFieldChange}
+                autoComplete="new-password"
+                required={
+                  !form.api_key_configured &&
+                  !form.uses_server_fallback
+                }
+                placeholder={
+                  form.api_key_configured
+                    ? "Key configured — enter to replace"
+                    : "Enter provider API key"
+                }
+              />
+            </label>
+
+
+            <label className="ai-feature-toggle">
+              <div>
+                <strong>
+                  Remove configured key
+                </strong>
+
+                <span>
+                  Remove the assistant-owned key. Only explicitly grandfathered Gemini assistants can use a server fallback.
+                </span>
+              </div>
+
+              <input
+                type="checkbox"
+                name="remove_provider_api_key"
+                checked={
+                  form.remove_provider_api_key
+                }
+                disabled={
+                  !form.api_key_configured
+                }
+                onChange={handleFieldChange}
               />
             </label>
 
@@ -684,6 +884,18 @@ export default function AISettingsPage({
 
             <div>
               <span>
+                Provider
+              </span>
+
+              <strong>
+                {PROVIDER_LABELS[
+                  form.provider
+                ]}
+              </strong>
+            </div>
+
+            <div>
+              <span>
                 Model
               </span>
 
@@ -691,6 +903,20 @@ export default function AISettingsPage({
                 {
                   form.model_name
                 }
+              </strong>
+            </div>
+
+            <div>
+              <span>
+                Provider key
+              </span>
+
+              <strong>
+                {form.api_key_configured
+                  ? "Configured"
+                  : form.uses_server_fallback
+                    ? "Server fallback"
+                    : "Not configured"}
               </strong>
             </div>
 

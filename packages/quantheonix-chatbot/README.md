@@ -6,6 +6,11 @@ The widget loads its configuration from the Quantheonix backend and supports str
 
 > A running Quantheonix backend and an active assistant are required.
 
+Set up the [backend](../../docs/backend-setup.md) and
+[system dashboard](../../docs/systemfrontend-setup.md) first. The package
+exports `QuantheonixChat` and `ChatWidget`; the supported public integration
+props are `apiUrl` and `assistantId`.
+
 ## Features
 
 - React chatbot widget
@@ -35,7 +40,7 @@ The widget loads its configuration from the Quantheonix backend and supports str
 
 The frontend does not need:
 
-- Gemini API keys
+- Gemini, OpenAI, or Anthropic API keys
 - JWT signing secrets
 - database credentials
 - user access tokens

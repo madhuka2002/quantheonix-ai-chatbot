@@ -1,4 +1,5 @@
 from datetime import datetime
+from typing import Literal
 from uuid import UUID
 
 from pydantic import (
@@ -10,6 +11,18 @@ from pydantic import (
 
 
 class AssistantCreate(BaseModel):
+    provider: Literal[
+        "gemini",
+        "openai",
+        "anthropic",
+    ] = "gemini"
+
+    provider_api_key: str | None = Field(
+        default=None,
+        repr=False,
+        exclude=True,
+    )
+
     name: str = Field(
         min_length=1,
         max_length=100,
@@ -89,6 +102,23 @@ class AssistantCreate(BaseModel):
 
 
 class AssistantUpdate(BaseModel):
+    provider: Literal[
+        "gemini",
+        "openai",
+        "anthropic",
+    ] | None = None
+
+    provider_api_key: str | None = Field(
+        default=None,
+        repr=False,
+        exclude=True,
+    )
+
+    remove_provider_api_key: bool = Field(
+        default=False,
+        exclude=True,
+    )
+
     name: str | None = Field(
         default=None,
         min_length=1,
@@ -188,6 +218,9 @@ class AssistantResponse(BaseModel):
     tone: str
     temperature: float
     model_name: str
+    provider: str
+    api_key_configured: bool = False
+    uses_server_fallback: bool = False
 
     rag_enabled: bool
     is_default: bool

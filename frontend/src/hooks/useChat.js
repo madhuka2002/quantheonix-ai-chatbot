@@ -82,7 +82,12 @@ function convertStoredMessages(
 }
 
 
-export function useChat() {
+export function useChat(
+  assistantId = null,
+) {
+  const storageSuffix =
+    assistantId || "default";
+
   const [input, setInput] =
     useState("");
 
@@ -91,7 +96,7 @@ export function useChat() {
     setMessages,
     removeStoredMessages,
   ] = useLocalStorage(
-    STORAGE_KEYS.messages,
+    `${STORAGE_KEYS.messages}:${storageSuffix}`,
     createInitialMessages,
   );
 
@@ -100,7 +105,7 @@ export function useChat() {
     setConversationId,
     removeStoredConversationId,
   ] = useLocalStorage(
-    STORAGE_KEYS.conversationId,
+    `${STORAGE_KEYS.conversationId}:${storageSuffix}`,
     null,
   );
 
@@ -396,6 +401,7 @@ export function useChat() {
         await streamChatMessage({
           message: cleanedMessage,
           conversationId,
+          assistantId,
           signal:
             abortController.signal,
 

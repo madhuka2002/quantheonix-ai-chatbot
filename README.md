@@ -1,477 +1,80 @@
-# Authentication
+# Quantheonix AI Chatbot
 
-Quantheonix uses JWT-based authentication to protect chatbot conversations and ensure that conversations belong to the authenticated user.
+Quantheonix provides a FastAPI backend, a React/Vite system dashboard, and a
+reusable React chatbot package. Assistant owners configure Gemini, OpenAI, or
+Anthropic Claude in
+the dashboard; provider credentials remain encrypted on the backend.
 
-The authentication system uses two tokens:
+## Guides
 
-- **Access token** — sent with protected API requests.
-- **Refresh token** — used to obtain a new access token when the current access token expires.
+- [Backend setup](docs/backend-setup.md) — FastAPI, PostgreSQL, Alembic, JWT,
+  provider encryption, health checks, and backend Docker usage.
+- [System frontend setup](docs/systemfrontend-setup.md) — the Quantheonix admin
+  dashboard, login, AI Settings, and Test Chat.
+- [Customer website widget](packages/quantheonix-chatbot/README.md) — install
+  and connect `@quantheonix/chatbot` to a React website.
+- [Self-hosted server](docs/self-hosted-setup.md) — private API/database,
+  dashboard proxy, HTTPS, and data-preserving upgrades.
+- [All run modes](docs/run-modes.md) — local Docker, hot reload, and server
+  commands.
 
-The host application is responsible for authenticating its users and providing a valid access token to the Quantheonix chatbot widget.
+## Local Docker quick start
 
-The widget itself does not require developers to manually copy tokens from Swagger, browser developer tools, or the console.
+Run from the repository root in PowerShell:
 
-A normal application flow is:
-
-```text
-User
-  |
-  v
-Register / Login
-  |
-  v
-Quantheonix Backend
-  |
-  +---- access_token
-  |
-  +---- refresh_token
-  |
-  v
-Host React Application
-  |
-  v
-@quantheonix/chatbot
-  |
-  | Authorization: Bearer <access_token>
-  v
-Protected Chat API
+```powershell
+Copy-Item .env.example .env
+notepad .env
+docker compose config
+docker compose up --build --wait
+docker compose ps
+Invoke-RestMethod http://127.0.0.1:8080/api/v1/health
 ```
 
----
+Open <http://127.0.0.1:8080>. Register or log in, select an assistant, configure
+its provider, compatible model, and provider key in **AI Settings**, then use
+**Test Chat**. Stop without deleting PostgreSQL data:
 
-## Authentication Endpoints
-
-The Quantheonix backend provides the following authentication endpoints:
-
-```text
-POST /api/v1/auth/register
-POST /api/v1/auth/login
-POST /api/v1/auth/refresh
-GET  /api/v1/auth/me
+```powershell
+docker compose down
 ```
 
-The exact request and response schemas can also be inspected through the FastAPI API documentation when the backend is running.
+## Customer website example
 
----
+The package exports `QuantheonixChat` and `ChatWidget`. The supported public
+integration uses `apiUrl` and `assistantId`:
 
-## Register a User
-
-A user must first have an account before using authenticated chatbot functionality.
-
-Example request:
-
-```http
-POST /api/v1/auth/register
-Content-Type: application/json
+```powershell
+npm install @quantheonix/chatbot
 ```
-
-Send the registration fields required by the backend registration schema.
-
-After registration, the user can log in through the login endpoint.
-
----
-
-## Login
-
-Authenticate the user through:
-
-```http
-POST /api/v1/auth/login
-Content-Type: application/json
-```
-
-Example request:
-
-```json
-{
-  "identifier": "user@example.com",
-  "password": "your-password"
-}
-```
-
-A successful login returns an authentication response containing values including:
-
-```json
-{
-  "access_token": "...",
-  "refresh_token": "...",
-  "token_type": "bearer",
-  "expires_in": 1800,
-  "refresh_expires_in": 604800,
-  "user": {
-    "id": "...",
-    "email": "user@example.com",
-    "username": "example-user"
-  }
-}
-```
-
-The exact expiration values depend on the backend configuration.
-
-The access token is used for authenticated API requests.
-
-The refresh token is used to obtain a new token pair when the access token expires.
-
----
-
-## Using an Access Token
-
-For simple development or testing, an access token can be passed directly to the widget:
 
 ```jsx
-import {
-  QuantheonixChat,
-} from "@quantheonix/chatbot";
-
+import { QuantheonixChat } from "@quantheonix/chatbot";
 import "@quantheonix/chatbot/chatbot.css";
 
-function App() {
-  const accessToken =
-    localStorage.getItem(
-      "quantheonix_access_token"
-    );
-
+export default function App() {
   return (
     <QuantheonixChat
-      apiUrl="http://localhost:8000"
-      accessToken={accessToken}
+      apiUrl="https://chat-api.example.com"
+      assistantId="YOUR_ASSISTANT_ID"
     />
   );
 }
-
-export default App;
 ```
 
-Protected requests are sent using:
-
-```http
-Authorization: Bearer <access_token>
-```
-
-Passing a static `accessToken` is useful for development and testing.
-
-For a real application, `getAccessToken` is recommended because it allows the widget to recover automatically when an access token expires.
-
----
-
-# Token Refresh
-
-Access tokens are intentionally short-lived.
-
-A real client application should therefore support refresh tokens instead of requiring the user to manually obtain and paste a new access token.
-
-Quantheonix supports this through the `getAccessToken` callback.
-
-The widget can request the current token using:
-
-```js
-getAccessToken({
-  forceRefresh: false
-});
-```
-
-If an authenticated request receives `401 Unauthorized`, the widget can request a refreshed token using:
-
-```js
-getAccessToken({
-  forceRefresh: true
-});
-```
-
-The host application should then call the Quantheonix refresh endpoint and return the new access token.
-
----
-
-## Recommended React Authentication Integration
-
-The following is a basic integration example.
-
-```jsx
-import {
-  QuantheonixChat,
-} from "@quantheonix/chatbot";
-
-import "@quantheonix/chatbot/chatbot.css";
-
-const API_URL =
-  import.meta.env.VITE_CHATBOT_API_URL;
-
-async function getAccessToken({
-  forceRefresh = false,
-} = {}) {
-  if (!forceRefresh) {
-    return localStorage.getItem(
-      "quantheonix_access_token"
-    );
-  }
-
-  const refreshToken =
-    localStorage.getItem(
-      "quantheonix_refresh_token"
-    );
-
-  if (!refreshToken) {
-    return null;
-  }
-
-  const response = await fetch(
-    `${API_URL}/api/v1/auth/refresh`,
-    {
-      method: "POST",
-      headers: {
-        Accept: "application/json",
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        refresh_token: refreshToken,
-      }),
-    }
-  );
-
-  if (!response.ok) {
-    localStorage.removeItem(
-      "quantheonix_access_token"
-    );
-
-    localStorage.removeItem(
-      "quantheonix_refresh_token"
-    );
-
-    return null;
-  }
-
-  const data = await response.json();
-
-  localStorage.setItem(
-    "quantheonix_access_token",
-    data.access_token
-  );
-
-  localStorage.setItem(
-    "quantheonix_refresh_token",
-    data.refresh_token
-  );
-
-  return data.access_token;
-}
-
-function App() {
-  return (
-    <QuantheonixChat
-      apiUrl={API_URL}
-      getAccessToken={getAccessToken}
-      title="Quantheonix AI"
-    />
-  );
-}
-
-export default App;
-```
-
-This provides the widget with the current access token and allows it to request a new token when authentication expires.
-
----
-
-## Example Login Integration
-
-A host application can store the tokens after a successful login.
-
-```js
-const API_URL =
-  import.meta.env.VITE_CHATBOT_API_URL;
-
-async function login(
-  identifier,
-  password
-) {
-  const response = await fetch(
-    `${API_URL}/api/v1/auth/login`,
-    {
-      method: "POST",
-      headers: {
-        Accept: "application/json",
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        identifier,
-        password,
-      }),
-    }
-  );
-
-  if (!response.ok) {
-    throw new Error(
-      "Login failed."
-    );
-  }
-
-  const data = await response.json();
-
-  localStorage.setItem(
-    "quantheonix_access_token",
-    data.access_token
-  );
-
-  localStorage.setItem(
-    "quantheonix_refresh_token",
-    data.refresh_token
-  );
-
-  return data.user;
-}
-```
-
-A simple application flow can therefore be:
-
-```text
-Application starts
-      |
-      v
-User logs in
-      |
-      v
-POST /api/v1/auth/login
-      |
-      v
-Access + Refresh Token
-      |
-      v
-Tokens stored by host application
-      |
-      v
-Chatbot receives access token
-      |
-      v
-POST /api/v1/chat/stream
-      |
-      +---------------------------+
-      |                           |
-     200                         401
-      |                           |
-      v                           v
-Continue chat             Refresh token
-                                  |
-                                  v
-                       POST /api/v1/auth/refresh
-                                  |
-                                  v
-                         New token pair
-                                  |
-                                  v
-                           Retry request
-```
-
----
-
-## Refresh Endpoint
-
-The refresh endpoint is:
-
-```http
-POST /api/v1/auth/refresh
-Content-Type: application/json
-```
-
-The refresh token is sent in the JSON request body:
-
-```json
-{
-  "refresh_token": "..."
-}
-```
-
-A successful refresh returns a new authentication response containing a new access token and refresh token.
-
-Applications should replace the previously stored token pair with the newly returned values.
-
----
-
-## Why `getAccessToken` Is Recommended
-
-Using:
-
-```jsx
-<QuantheonixChat
-  accessToken={accessToken}
-/>
-```
-
-is supported, but the supplied token may eventually expire.
-
-Using:
-
-```jsx
-<QuantheonixChat
-  getAccessToken={getAccessToken}
-/>
-```
-
-allows the host application to provide fresh authentication credentials when required.
-
-This is the recommended integration for authenticated applications.
-
----
-
-## Important Security Note
-
-The authentication examples above demonstrate the widget integration contract.
-
-Production applications may choose a different browser-side token storage strategy depending on their security architecture.
-
-Regardless of the storage strategy, never expose backend secrets in frontend code.
-
-Do not place any of the following in React, Vite, Next.js, or other browser bundles:
-
-```text
-GEMINI_API_KEY
-JWT_SECRET_KEY
-POSTGRES_PASSWORD
-DATABASE_URL
-```
-
-The browser only needs the user's authentication credentials required to communicate with the backend.
-
-Gemini credentials, JWT signing secrets, database credentials, and other server secrets must remain on the backend.
-
----
-
-## Authentication Responsibilities
-
-The responsibilities are intentionally separated.
-
-### Host Application
-
-The host application is responsible for:
-
-- displaying registration and login interfaces
-- authenticating users
-- storing or managing authentication state
-- providing the access token to the chatbot
-- refreshing authentication when necessary
-- logging the user out when authentication can no longer be refreshed
-
-### Quantheonix Widget
-
-`@quantheonix/chatbot` is responsible for:
-
-- requesting an access token from `getAccessToken`
-- attaching the access token to protected chatbot requests
-- detecting authentication failures
-- requesting a refreshed token when supported
-- retrying the appropriate request after successful token refresh
-
-### Quantheonix Backend
-
-The backend is responsible for:
-
-- registering users
-- authenticating credentials
-- issuing access tokens
-- issuing refresh tokens
-- validating JWT access tokens
-- validating refresh tokens
-- issuing replacement token pairs
-- enforcing conversation ownership
-- protecting authenticated chatbot endpoints
-
-This separation allows Quantheonix to integrate with a normal client application without requiring users to manually manage access tokens.
+Provider keys, JWT secrets, and database credentials never belong in the
+customer website or Vite environment.
+
+## Security boundary
+
+- Dashboard settings endpoints require JWT authentication and assistant
+  ownership.
+- Assistant provider keys are write-only, encrypted in PostgreSQL, and omitted
+  from API responses and public widget configuration.
+- `GEMINI_API_KEY` is an optional fallback only for explicitly grandfathered
+  Gemini assistants; new accounts configure their own key.
+- `PROVIDER_KEY_ENCRYPTION_SECRET` is required and must remain stable; losing or
+  changing it prevents existing assistant keys from being decrypted.
+
+Real `.env` files are ignored. Do not commit provider keys, JWT secrets,
+database passwords, or the provider-key encryption secret.

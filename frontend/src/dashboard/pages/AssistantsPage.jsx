@@ -19,6 +19,7 @@ export default function AssistantsPage({
   onRefresh,
   selectedAssistantId,
   onSelectAssistant,
+  onNavigate,
 }) {
   const [
     modalMode,
@@ -130,6 +131,10 @@ export default function AssistantsPage({
           onSelectAssistant(
             createdAssistant.id,
           );
+        }
+
+        if (onNavigate) {
+          onNavigate("ai-settings");
         }
       }
 
@@ -378,13 +383,28 @@ export default function AssistantsPage({
                     <button
                       type="button"
                       className="dashboard-secondary-button"
+                      onClick={() => {
+                        onSelectAssistant(
+                          assistant.id,
+                        );
+                        onNavigate(
+                          "ai-settings",
+                        );
+                      }}
+                    >
+                      Configure AI
+                    </button>
+
+                    <button
+                      type="button"
+                      className="dashboard-secondary-button"
                       onClick={() =>
                         openEditModal(
                           assistant,
                         )
                       }
                     >
-                      Configure
+                      Edit details
                     </button>
 
                     <button

@@ -320,3 +320,17 @@ class DefaultAssistantDeleteError(ApplicationError):
             message="The default assistant cannot be deleted.",
             status_code=status.HTTP_409_CONFLICT,
         )
+
+
+class ProviderKeyRequiredError(ApplicationError):
+    def __init__(self) -> None:
+        super().__init__(
+            code="provider_key_required",
+            message=(
+                "Enter a new provider API key when changing "
+                "the assistant's provider."
+            ),
+            status_code=(
+                status.HTTP_422_UNPROCESSABLE_CONTENT
+            ),
+        )

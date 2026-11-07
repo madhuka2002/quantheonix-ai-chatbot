@@ -50,6 +50,13 @@ class PublicConversation(
         nullable=False,
     )
 
+    provider: Mapped[str] = mapped_column(
+        String(20),
+        nullable=False,
+        default="gemini",
+        server_default="gemini",
+    )
+
     system_prompt: Mapped[str | None] = mapped_column(
         Text,
         nullable=True,

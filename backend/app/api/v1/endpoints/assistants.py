@@ -28,6 +28,29 @@ router = APIRouter(
 )
 
 
+def _response(
+    assistant,
+) -> AssistantResponse:
+    response = AssistantResponse.model_validate(
+        assistant
+    )
+
+    return response.model_copy(
+        update={
+            "api_key_configured": (
+                AssistantService.api_key_configured(
+                    assistant
+                )
+            ),
+            "uses_server_fallback": (
+                AssistantService.uses_server_fallback(
+                    assistant
+                )
+            ),
+        }
+    )
+
+
 @router.get(
     "",
     response_model=list[AssistantResponse],
@@ -44,9 +67,7 @@ async def list_assistants(
     )
 
     return [
-        AssistantResponse.model_validate(
-            assistant
-        )
+        _response(assistant)
         for assistant in assistants
     ]
 
@@ -69,9 +90,7 @@ async def create_assistant(
         data=data,
     )
 
-    return AssistantResponse.model_validate(
-        assistant
-    )
+    return _response(assistant)
 
 
 @router.get(
@@ -91,9 +110,7 @@ async def get_assistant(
         assistant_id=assistant_id,
     )
 
-    return AssistantResponse.model_validate(
-        assistant
-    )
+    return _response(assistant)
 
 @router.patch(
     "/{assistant_id}",
@@ -114,9 +131,7 @@ async def update_assistant(
         data=data,
     )
 
-    return AssistantResponse.model_validate(
-        assistant
-    )
+    return _response(assistant)
 
 
 @router.delete(
