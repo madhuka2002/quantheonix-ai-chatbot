@@ -596,9 +596,9 @@ CORS stands for:
 Cross-Origin Resource Sharing
 ```
 
-It controls which browser origins are allowed to communicate with the backend.
-
-This is especially important because the npm chatbot package runs inside another website.
+It controls which browser origins may use the dashboard and authenticated API.
+The two public widget endpoints use their own credential-free CORS policy and
+authorize real requests with the assistant's **Allowed Domains** instead.
 
 The value must be a JSON-style list.
 
@@ -639,7 +639,9 @@ with the appropriate HTTP scheme.
 
 The important rule is:
 
-> `CORS_ORIGINS` must contain the actual browser origin hosting the frontend.
+> `CORS_ORIGINS` must contain the actual browser origin hosting the dashboard
+> or another authenticated browser API client. Customer widget hostnames belong
+> in the assistant's **Allowed Domains** page.
 
 ---
 
@@ -672,7 +674,7 @@ with the appropriate HTTP scheme.
 
 # 17. Production CORS
 
-Suppose a customer's website is:
+Suppose a separately hosted Quantheonix dashboard is:
 
 ```text
 https://example.com
@@ -1128,10 +1130,14 @@ DATABASE_URL=<production database>
 
 JWT_SECRET_KEY=<production secret>
 
-CORS_ORIGINS=<customer website origins>
+CORS_ORIGINS=<dashboard and authenticated browser API origins>
 ```
 
 Production credentials should normally be stored using the hosting provider's environment-variable or secret-management system rather than committed files.
+
+Customer widget websites are added in the selected assistant's **Allowed
+Domains** page. Saving or removing one takes effect immediately without editing
+these environment variables or redeploying the backend.
 
 ---
 

@@ -117,3 +117,6 @@ The system dashboard is not the embeddable customer widget. Install and use
 the published React package as documented in
 [`packages/quantheonix-chatbot/README.md`](../packages/quantheonix-chatbot/README.md).
 Its supported public props are `apiUrl` and `assistantId`.
+Before installation, save each customer website hostname on the assistant's
+**Allowed Domains** page. Widget sites do not need to be added to backend
+`CORS_ORIGINS`, and saving a domain does not require a backend redeploy.

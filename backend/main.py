@@ -8,10 +8,6 @@ from fastapi import (
 from fastapi.exceptions import (
     RequestValidationError,
 )
-from fastapi.middleware.cors import (
-    CORSMiddleware,
-)
-
 from app.api.legacy import legacy_router
 from app.api.v1.router import api_v1_router
 from app.core.config import settings
@@ -28,6 +24,7 @@ from app.core.logging import configure_logging
 from app.core.middleware import (
     RateLimitMiddleware,
     RequestContextMiddleware,
+    RouteAwareCORSMiddleware,
 )
 from app.db.session import close_database_engine
 
@@ -73,12 +70,8 @@ app = FastAPI(
 
 
 app.add_middleware(
-    CORSMiddleware,
-    allow_origins=settings.cors_origins,
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-    expose_headers=["X-Request-ID"],
+    RouteAwareCORSMiddleware,
+    dashboard_origins=settings.cors_origins,
 )
 
 

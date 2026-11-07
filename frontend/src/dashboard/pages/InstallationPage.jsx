@@ -339,8 +339,9 @@ export default function App() {
               </span>
 
               <p>
-                Configure backend CORS for
-                the website origin.
+                Use only the public assistant
+                ID and API URL in frontend
+                code.
               </p>
             </div>
 
@@ -351,8 +352,8 @@ export default function App() {
 
               <p>
                 Test configuration loading
-                and chat streaming before
-                production deployment.
+                and chat streaming. No backend
+                CORS or redeploy is required.
               </p>
             </div>
           </div>
