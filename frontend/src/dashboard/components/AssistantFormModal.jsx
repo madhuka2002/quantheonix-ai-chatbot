@@ -264,57 +264,37 @@ export default function AssistantFormModal({
           </label>
 
 
-          <div className="assistant-form__grid">
-            <label>
-              <span>
-                Tone
-              </span>
+          <label>
+            <span>
+              Tone
+            </span>
 
-              <select
-                name="tone"
-                value={
-                  form.tone
-                }
-                onChange={
-                  updateField
-                }
-              >
-                <option value="professional">
-                  Professional
-                </option>
+            <select
+              name="tone"
+              value={
+                form.tone
+              }
+              onChange={
+                updateField
+              }
+            >
+              <option value="professional">
+                Professional
+              </option>
 
-                <option value="friendly">
-                  Friendly
-                </option>
+              <option value="friendly">
+                Friendly
+              </option>
 
-                <option value="concise">
-                  Concise
-                </option>
+              <option value="concise">
+                Concise
+              </option>
 
-                <option value="technical">
-                  Technical
-                </option>
-              </select>
-            </label>
-
-
-            <label>
-              <span>
-                Model
-              </span>
-
-              <input
-                name="model_name"
-                value={
-                  form.model_name
-                }
-                onChange={
-                  updateField
-                }
-                required
-              />
-            </label>
-          </div>
+              <option value="technical">
+                Technical
+              </option>
+            </select>
+          </label>
 
 
           <label>

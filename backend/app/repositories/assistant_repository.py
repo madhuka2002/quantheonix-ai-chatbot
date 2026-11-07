@@ -100,6 +100,8 @@ class AssistantRepository:
         temperature: float,
         model_name: str,
         rag_enabled: bool,
+        provider: str = "gemini",
+        provider_api_key_encrypted: str | None = None,
     ) -> Assistant:
         assistant = Assistant(
             user_id=user_id,
@@ -110,6 +112,11 @@ class AssistantRepository:
             tone=tone,
             temperature=temperature,
             model_name=model_name,
+            provider=provider,
+            provider_api_key_encrypted=(
+                provider_api_key_encrypted
+            ),
+            allow_server_gemini_fallback=False,
             rag_enabled=rag_enabled,
             is_default=False,
             is_active=True,
@@ -143,6 +150,9 @@ class AssistantRepository:
             tone="professional",
             temperature=0.5,
             model_name="gemini-flash-latest",
+            provider="gemini",
+            provider_api_key_encrypted=None,
+            allow_server_gemini_fallback=False,
             rag_enabled=False,
             is_default=True,
             is_active=True,

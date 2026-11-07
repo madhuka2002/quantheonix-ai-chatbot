@@ -21,6 +21,7 @@ from app.core.exceptions import (
     ChatGenerationError,
     ConversationNotFoundError,
 )
+from app.ai.providers import ProviderAPIError
 from app.models.message import MessageRole
 from app.repositories import (
     AssistantRepository,
@@ -55,8 +56,6 @@ class DatabaseChatService:
             )
         )
 
-        self._client = create_client()
-
     async def _get_default_assistant(
         self,
         *,
@@ -80,6 +79,33 @@ class DatabaseChatService:
             raise ChatGenerationError()
 
         return assistant
+
+    async def _provider_for_conversation(
+        self,
+        *,
+        user_id: UUID,
+        conversation,
+        assistant=None,
+    ):
+        if assistant is None:
+            assistant = (
+                await self._assistant_repository.get_for_user(
+                    assistant_id=conversation.assistant_id,
+                    user_id=user_id,
+                )
+            )
+
+        if (
+            assistant is None
+            or not assistant.is_active
+            or assistant.provider != conversation.provider
+        ):
+            raise ChatGenerationError()
+
+        return create_client(
+            assistant,
+            system_prompt=conversation.system_prompt,
+        )
 
     async def _resolve_assistant(
         self,
@@ -148,6 +174,7 @@ class DatabaseChatService:
                         user_id=user_id,
                         assistant_id=assistant.id,
                         model_name=assistant.model_name,
+                        provider=assistant.provider,
                         title=self._create_title(
                             message,
                         ),
@@ -183,9 +210,20 @@ class DatabaseChatService:
                     conversation.messages,
                 )
 
+                assistant = None
+
+            provider_client = (
+                await self._provider_for_conversation(
+                    user_id=user_id,
+                    conversation=conversation,
+                    assistant=assistant,
+                )
+            )
+
             chat = create_chat(
-                self._client,
+                provider_client,
                 history=history,
+                model_name=conversation.model_name,
             )
 
             reply = await to_thread.run_sync(
@@ -414,6 +452,7 @@ class DatabaseChatService:
                         user_id=user_id,
                         assistant_id=assistant.id,
                         model_name=assistant.model_name,
+                        provider=assistant.provider,
                         title=self._create_title(
                             message,
                         ),
@@ -449,6 +488,16 @@ class DatabaseChatService:
                     conversation.messages,
                 )
 
+                assistant = None
+
+            provider_client = (
+                await self._provider_for_conversation(
+                    user_id=user_id,
+                    conversation=conversation,
+                    assistant=assistant,
+                )
+            )
+
             yield self._encode_stream_event(
                 {
                     "type": "start",
@@ -459,7 +508,7 @@ class DatabaseChatService:
             )
 
             async for text_chunk in stream_reply(
-                self._client,
+                provider_client,
                 model_name=conversation.model_name,
                 history=history,
                 message=message,
@@ -526,7 +575,7 @@ class DatabaseChatService:
                 }
             )
 
-        except errors.APIError as exc:
+        except (errors.APIError, ProviderAPIError) as exc:
             await self._session.rollback()
 
             provider_status = getattr(
@@ -634,6 +683,13 @@ class DatabaseChatService:
             if conversation is None:
                 raise ConversationNotFoundError()
 
+            provider_client = (
+                await self._provider_for_conversation(
+                    user_id=user_id,
+                    conversation=conversation,
+                )
+            )
+
             latest_user_message = (
                 await self._repository
                 .get_latest_user_message(
@@ -673,7 +729,7 @@ class DatabaseChatService:
             )
 
             async for text_chunk in stream_reply(
-                self._client,
+                provider_client,
                 model_name=conversation.model_name,
                 history=history,
                 message=latest_user_message.content,
@@ -728,7 +784,7 @@ class DatabaseChatService:
                 }
             )
 
-        except errors.APIError as exc:
+        except (errors.APIError, ProviderAPIError) as exc:
             await self._session.rollback()
 
             provider_status = getattr(
@@ -800,7 +856,7 @@ class DatabaseChatService:
 
     @staticmethod
     def _is_temporary_ai_provider_error(
-        exc: errors.APIError,
+        exc: errors.APIError | ProviderAPIError,
     ) -> bool:
         """
         Return True for temporary/retryable AI provider errors.
@@ -967,6 +1023,13 @@ class DatabaseChatService:
             if conversation is None:
                 raise ConversationNotFoundError()
 
+            provider_client = (
+                await self._provider_for_conversation(
+                    user_id=user_id,
+                    conversation=conversation,
+                )
+            )
+
             user_message = (
                 await self._repository
                 .get_message_for_user(
@@ -1024,7 +1087,7 @@ class DatabaseChatService:
             )
 
             async for text_chunk in stream_reply(
-                self._client,
+                provider_client,
                 model_name=conversation.model_name,
                 history=history,
                 message=content,
@@ -1079,7 +1142,7 @@ class DatabaseChatService:
                 }
             )
 
-        except errors.APIError as exc:
+        except (errors.APIError, ProviderAPIError) as exc:
             await self._session.rollback()
 
             provider_status = getattr(

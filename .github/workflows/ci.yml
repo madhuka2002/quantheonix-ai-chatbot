@@ -40,6 +40,7 @@ jobs:
     env:
       JWT_SECRET_KEY: "ci_test_jwt_secret_key_123456789012345678901234567890"
       GEMINI_API_KEY: "ci_test_gemini_key"
+      PROVIDER_KEY_ENCRYPTION_SECRET: "ci_test_provider_encryption_secret"
       DATABASE_URL: "postgresql+asyncpg://quantheonix_ci:ci_only_password@localhost:5432/quantheonix_ci"
       ENVIRONMENT: "testing"
       DEBUG: "false"
@@ -130,17 +131,240 @@ jobs:
             -t quantheonix-backend-ci \
             ./backend
 
+      - name: Validate frontend Docker image
+        run: |
+          docker build \
+            -t quantheonix-frontend-ci \
+            ./frontend
+
+      - name: Validate local Compose
+        run: |
+          docker compose \
+            --env-file .env.example \
+            -f compose.yaml \
+            config >/dev/null
+
       - name: Validate self-hosted Compose
         env:
           POSTGRES_DB: quantheonix_ci
           POSTGRES_USER: quantheonix_ci
           POSTGRES_PASSWORD: ci_only_password
           GEMINI_API_KEY: ci_placeholder_key
+          PROVIDER_KEY_ENCRYPTION_SECRET: ci_provider_encryption_secret
           JWT_SECRET_KEY: ci_only_jwt_secret_key_not_for_production
           CORS_ORIGINS: '["http://localhost:5173"]'
         run: |
           docker compose \
+            --env-file .env.selfhosted.example \
             -f compose.selfhosted.yaml \
             config >/dev/null
 
           echo "Compose configuration valid"
+
+  # ============================================================
+  # Local Docker Stack Smoke Test
+  # ============================================================
+  docker-local-smoke:
+    name: Local Docker Stack Smoke
+    runs-on: ubuntu-latest
+
+    env:
+      COMPOSE_PROJECT_NAME: quantheonix-ci-local
+      POSTGRES_CONTAINER_NAME: quantheonix-ci-local-postgres
+      BACKEND_CONTAINER_NAME: quantheonix-ci-local-backend
+      FRONTEND_CONTAINER_NAME: quantheonix-ci-local-frontend
+      POSTGRES_VOLUME_NAME: quantheonix_ci_local_postgres_data
+      POSTGRES_DB: quantheonix_ci_local
+      POSTGRES_USER: quantheonix_ci_local
+      POSTGRES_PASSWORD: ci_only_local_database_password
+      POSTGRES_BIND_ADDRESS: 127.0.0.1
+      POSTGRES_PORT: "15433"
+      BACKEND_BIND_ADDRESS: 127.0.0.1
+      BACKEND_PORT: "18000"
+      DASHBOARD_BIND_ADDRESS: 127.0.0.1
+      DASHBOARD_PORT: "18080"
+      GEMINI_API_KEY: ci_placeholder_gemini_key
+      PROVIDER_KEY_ENCRYPTION_SECRET: ci_local_provider_encryption_secret
+      JWT_SECRET_KEY: ci_only_local_jwt_secret_key_not_for_production
+      CORS_ORIGINS: '[]'
+      RATE_LIMIT_ENABLED: "false"
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v6
+
+      - name: Validate local Compose
+        run: |
+          docker compose \
+            --env-file .env.example \
+            -f compose.yaml \
+            config >/dev/null
+
+      - name: Start local stack
+        run: |
+          docker compose \
+            --env-file .env.example \
+            -f compose.yaml \
+            up --build --wait
+
+      - name: Smoke test local stack
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          base_url="http://127.0.0.1:18080"
+          username="qx_ci_${GITHUB_RUN_ID}_${GITHUB_RUN_ATTEMPT}"
+          password="CiSmokePassword123!"
+
+          curl --fail --silent --show-error \
+            --output /tmp/quantheonix-dashboard.html \
+            "${base_url}/"
+          grep --quiet '<div id="root"' /tmp/quantheonix-dashboard.html
+
+          curl --fail --silent --show-error \
+            --output /tmp/quantheonix-health.json \
+            "${base_url}/api/v1/health"
+          grep --quiet '"status":"healthy"' /tmp/quantheonix-health.json
+
+          register_status="$(curl --silent --show-error \
+            --output /tmp/quantheonix-register.json \
+            --write-out '%{http_code}' \
+            --request POST \
+            --header 'Content-Type: application/json' \
+            --data "{\"email\":\"${username}@example.com\",\"username\":\"${username}\",\"full_name\":\"CI Smoke User\",\"password\":\"${password}\"}" \
+            "${base_url}/api/v1/auth/register")"
+          test "${register_status}" = "201"
+
+          login_status="$(curl --silent --show-error \
+            --output /tmp/quantheonix-login.json \
+            --write-out '%{http_code}' \
+            --request POST \
+            --header 'Content-Type: application/json' \
+            --data "{\"identifier\":\"${username}\",\"password\":\"${password}\"}" \
+            "${base_url}/api/v1/auth/login")"
+          test "${login_status}" = "200"
+
+          python3 -c \
+            'import json; assert json.load(open("/tmp/quantheonix-login.json", encoding="utf-8")).get("access_token")'
+
+      - name: Show local stack diagnostics
+        if: failure()
+        run: |
+          docker compose \
+            --env-file .env.example \
+            -f compose.yaml \
+            ps
+          docker compose \
+            --env-file .env.example \
+            -f compose.yaml \
+            logs --no-color --tail 200
+
+      - name: Remove local smoke stack
+        if: always()
+        run: |
+          docker compose \
+            --env-file .env.example \
+            -f compose.yaml \
+            down --volumes --remove-orphans
+
+  # ============================================================
+  # Self-Hosted Docker Stack Smoke Test
+  # ============================================================
+  docker-selfhosted-smoke:
+    name: Self-Hosted Docker Stack Smoke
+    runs-on: ubuntu-latest
+
+    env:
+      COMPOSE_PROJECT_NAME: quantheonix-ci-selfhosted
+      POSTGRES_CONTAINER_NAME: quantheonix-ci-selfhosted-postgres
+      BACKEND_CONTAINER_NAME: quantheonix-ci-selfhosted-backend
+      FRONTEND_CONTAINER_NAME: quantheonix-ci-selfhosted-frontend
+      POSTGRES_VOLUME_NAME: quantheonix_ci_selfhosted_postgres_data
+      POSTGRES_DB: quantheonix_ci_selfhosted
+      POSTGRES_USER: quantheonix_ci_selfhosted
+      POSTGRES_PASSWORD: ci_only_selfhosted_database_password
+      GEMINI_API_KEY: ci_placeholder_gemini_key
+      PROVIDER_KEY_ENCRYPTION_SECRET: ci_selfhosted_provider_encryption_secret
+      JWT_SECRET_KEY: ci_only_selfhosted_jwt_secret_key_not_for_production
+      CORS_ORIGINS: '[]'
+      RATE_LIMIT_ENABLED: "false"
+      DASHBOARD_BIND_ADDRESS: 127.0.0.1
+      DASHBOARD_PORT: "18081"
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v6
+
+      - name: Validate self-hosted Compose
+        run: |
+          docker compose \
+            --env-file .env.selfhosted.example \
+            -f compose.selfhosted.yaml \
+            config >/dev/null
+
+      - name: Start self-hosted stack
+        run: |
+          docker compose \
+            --env-file .env.selfhosted.example \
+            -f compose.selfhosted.yaml \
+            up --build --wait
+
+      - name: Smoke test self-hosted stack
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          base_url="http://127.0.0.1:18081"
+          username="qx_ci_${GITHUB_RUN_ID}_${GITHUB_RUN_ATTEMPT}"
+          password="CiSmokePassword123!"
+
+          curl --fail --silent --show-error \
+            --output /tmp/quantheonix-dashboard.html \
+            "${base_url}/"
+          grep --quiet '<div id="root"' /tmp/quantheonix-dashboard.html
+
+          curl --fail --silent --show-error \
+            --output /tmp/quantheonix-health.json \
+            "${base_url}/api/v1/health"
+          grep --quiet '"status":"healthy"' /tmp/quantheonix-health.json
+
+          register_status="$(curl --silent --show-error \
+            --output /tmp/quantheonix-register.json \
+            --write-out '%{http_code}' \
+            --request POST \
+            --header 'Content-Type: application/json' \
+            --data "{\"email\":\"${username}@example.com\",\"username\":\"${username}\",\"full_name\":\"CI Smoke User\",\"password\":\"${password}\"}" \
+            "${base_url}/api/v1/auth/register")"
+          test "${register_status}" = "201"
+
+          login_status="$(curl --silent --show-error \
+            --output /tmp/quantheonix-login.json \
+            --write-out '%{http_code}' \
+            --request POST \
+            --header 'Content-Type: application/json' \
+            --data "{\"identifier\":\"${username}\",\"password\":\"${password}\"}" \
+            "${base_url}/api/v1/auth/login")"
+          test "${login_status}" = "200"
+
+          python3 -c \
+            'import json; assert json.load(open("/tmp/quantheonix-login.json", encoding="utf-8")).get("access_token")'
+
+      - name: Show self-hosted stack diagnostics
+        if: failure()
+        run: |
+          docker compose \
+            --env-file .env.selfhosted.example \
+            -f compose.selfhosted.yaml \
+            ps
+          docker compose \
+            --env-file .env.selfhosted.example \
+            -f compose.selfhosted.yaml \
+            logs --no-color --tail 200
+
+      - name: Remove self-hosted smoke stack
+        if: always()
+        run: |
+          docker compose \
+            --env-file .env.selfhosted.example \
+            -f compose.selfhosted.yaml \
+            down --volumes --remove-orphans

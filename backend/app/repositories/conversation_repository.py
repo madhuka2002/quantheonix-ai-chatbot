@@ -30,6 +30,7 @@ class ConversationRepository:
         user_id: UUID,
         assistant_id: UUID,
         model_name: str,
+        provider: str,
         title: str | None = None,
         system_prompt: str | None = None,
     ) -> Conversation:
@@ -39,6 +40,7 @@ class ConversationRepository:
             title=title,
             system_prompt=system_prompt,
             model_name=model_name,
+            provider=provider,
             is_active=True,
             last_message_at=None,
         )
@@ -435,4 +437,4 @@ class ConversationRepository:
         await self._session.flush()
 
         return message
-        
+

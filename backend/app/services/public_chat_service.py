@@ -44,8 +44,6 @@ class PublicChatService:
             )
         )
 
-        self._client = create_client()
-
     async def stream_message(
         self,
         *,
@@ -73,6 +71,7 @@ class PublicChatService:
                     .create_conversation(
                         assistant_id=assistant.id,
                         model_name=assistant.model_name,
+                        provider=assistant.provider,
                         system_prompt=(
                             assistant.system_prompt
                         ),
@@ -106,6 +105,14 @@ class PublicChatService:
                     }
                 ]
 
+            if conversation.provider != assistant.provider:
+                raise PublicChatError()
+
+            provider_client = create_client(
+                assistant,
+                system_prompt=conversation.system_prompt,
+            )
+
             yield self._encode_event(
                 {
                     "type": "start",
@@ -116,7 +123,7 @@ class PublicChatService:
             )
 
             async for text_chunk in stream_reply(
-                self._client,
+                provider_client,
                 model_name=conversation.model_name,
                 history=history,
                 message=message,
@@ -177,12 +184,10 @@ class PublicChatService:
                 "Public chat generation failed | "
                 "assistant_id=%s | "
                 "conversation_id=%s | "
-                "error_type=%s | "
-                "error=%s",
+                "error_type=%s",
                 assistant_id,
                 conversation_id,
                 type(exc).__name__,
-                exc,
             )
 
             yield self._encode_event(

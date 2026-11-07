@@ -98,6 +98,28 @@ async def create_authenticated_user(
         login_response.json()["access_token"]
     )
 
+    assistant_response = await client.get(
+        "/api/v1/assistants",
+        headers=auth_headers(access_token),
+    )
+    assert assistant_response.status_code == 200
+    default_assistant = next(
+        assistant
+        for assistant in assistant_response.json()
+        if assistant["is_default"]
+    )
+
+    key_response = await client.patch(
+        f"/api/v1/assistants/{default_assistant['id']}",
+        headers=auth_headers(access_token),
+        json={
+            "provider_api_key": (
+                f"test-only-{payload['username']}"
+            ),
+        },
+    )
+    assert key_response.status_code == 200
+
     return payload, access_token
 
 

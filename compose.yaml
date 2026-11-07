@@ -1,15 +1,15 @@
 services:
   postgres:
     image: postgres:17-alpine
-    container_name: quantheonix-dev-postgres
+    container_name: ${POSTGRES_CONTAINER_NAME:-quantheonix-dev-postgres}
 
     environment:
-      POSTGRES_DB: quantheonix_chatbot
-      POSTGRES_USER: quantheonix_user
-      POSTGRES_PASSWORD: user123
+      POSTGRES_DB: ${POSTGRES_DB:-quantheonix_chatbot}
+      POSTGRES_USER: ${POSTGRES_USER:-quantheonix_user}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-user123}
 
     ports:
-      - "5433:5432"
+      - "${POSTGRES_BIND_ADDRESS:-0.0.0.0}:${POSTGRES_PORT:-5433}:5432"
 
     volumes:
       - quantheonix_dev_postgres_data:/var/lib/postgresql/data
@@ -18,7 +18,7 @@ services:
       test:
         [
           "CMD-SHELL",
-          "pg_isready -U quantheonix_user -d quantheonix_chatbot"
+          "pg_isready -U ${POSTGRES_USER:-quantheonix_user} -d ${POSTGRES_DB:-quantheonix_chatbot}"
         ]
       interval: 10s
       timeout: 5s
@@ -33,20 +33,39 @@ services:
       context: ./backend
       dockerfile: Dockerfile
 
-    container_name: quantheonix-backend
-
-    env_file:
-      - ./backend/.env.docker
+    container_name: ${BACKEND_CONTAINER_NAME:-quantheonix-backend}
 
     environment:
-      DATABASE_URL: postgresql+asyncpg://quantheonix_user:user123@postgres:5432/quantheonix_chatbot
+      APP_NAME: Quantheonix AI Chatbot API
+      APP_VERSION: ${APP_VERSION:-1.0.0}
+      DEBUG: ${DEBUG:-false}
+      API_V1_PREFIX: /api/v1
+      GEMINI_API_KEY: ${GEMINI_API_KEY:-}
+      GEMINI_MODEL: ${GEMINI_MODEL:-gemini-flash-latest}
+      GEMINI_TEMPERATURE: ${GEMINI_TEMPERATURE:-0.7}
+      PROVIDER_KEY_ENCRYPTION_SECRET: ${PROVIDER_KEY_ENCRYPTION_SECRET:-local_only_provider_encryption_secret_change_me}
+      DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER:-quantheonix_user}:${POSTGRES_PASSWORD:-user123}@postgres:5432/${POSTGRES_DB:-quantheonix_chatbot}
+      JWT_SECRET_KEY: ${JWT_SECRET_KEY:-local_only_jwt_secret_change_before_sharing}
+      JWT_ALGORITHM: HS256
+      ACCESS_TOKEN_EXPIRE_MINUTES: ${ACCESS_TOKEN_EXPIRE_MINUTES:-30}
+      REFRESH_TOKEN_EXPIRE_DAYS: ${REFRESH_TOKEN_EXPIRE_DAYS:-7}
+      CORS_ORIGINS: '${CORS_ORIGINS:-["http://localhost:8080","http://127.0.0.1:8080","http://localhost:5173","http://127.0.0.1:5173"]}'
+      RATE_LIMIT_ENABLED: ${RATE_LIMIT_ENABLED:-true}
 
     ports:
-      - "8000:8000"
+      - "${BACKEND_BIND_ADDRESS:-0.0.0.0}:${BACKEND_PORT:-8000}:8000"
 
     depends_on:
       postgres:
         condition: service_healthy
+
+    command:
+      - sh
+      - -c
+      - |
+        set -e
+        alembic upgrade head
+        exec uvicorn main:app --host 0.0.0.0 --port 8000
 
     restart: unless-stopped
 
@@ -61,7 +80,7 @@ services:
       interval: 30s
       timeout: 10s
       retries: 3
-      start_period: 20s
+      start_period: 60s
 
 
   frontend:
@@ -69,13 +88,10 @@ services:
       context: ./frontend
       dockerfile: Dockerfile
 
-      args:
-        VITE_API_BASE_URL: http://127.0.0.1:8000
-
-    container_name: quantheonix-frontend
+    container_name: ${FRONTEND_CONTAINER_NAME:-quantheonix-frontend}
 
     ports:
-      - "8080:80"
+      - "${DASHBOARD_BIND_ADDRESS:-0.0.0.0}:${DASHBOARD_PORT:-8080}:80"
 
     depends_on:
       backend:
@@ -83,7 +99,21 @@ services:
 
     restart: unless-stopped
 
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "wget",
+          "--quiet",
+          "--output-document=/dev/null",
+          "http://127.0.0.1/"
+        ]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+
 
 volumes:
   quantheonix_dev_postgres_data:
-    name: quantheonix_dev_postgres_data
+    name: ${POSTGRES_VOLUME_NAME:-quantheonix_dev_postgres_data}

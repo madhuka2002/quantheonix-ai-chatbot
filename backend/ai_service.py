@@ -1,62 +1,72 @@
-import asyncio
+from collections.abc import AsyncIterator, Sequence
+from dataclasses import dataclass
 
-from collections.abc import (
-    AsyncIterator,
-    Sequence,
+from app.ai.providers import (
+    ProviderConfigurationError,
+    ProviderSession,
+    build_provider_session,
+    create_history_message,
 )
-
-from google import genai
-from google.genai import errors
-from google.genai import types
-
-from config import (
-    GEMINI_API_KEY,
-    GEMINI_MODEL,
-    GEMINI_TEMPERATURE,
-    validate_config,
-)
-
+from app.core.config import settings
+from app.models.assistant import Assistant
 from prompts import SYSTEM_INSTRUCTION
 
 
-def create_client() -> genai.Client:
-    """
-    Create and return the Gemini API client.
-    """
+def create_client(
+    assistant: Assistant | None = None,
+    *,
+    system_prompt: str | None = None,
+) -> ProviderSession:
+    """Build a provider session without exposing its API key."""
 
-    validate_config()
+    if assistant is not None:
+        return build_provider_session(
+            assistant,
+            system_prompt=system_prompt,
+        )
 
-    return genai.Client(
-        api_key=GEMINI_API_KEY,
+    if not settings.gemini_api_key:
+        raise ProviderConfigurationError()
+
+    return ProviderSession(
+        provider="gemini",
+        api_key=settings.gemini_api_key,
+        system_prompt=(
+            system_prompt or SYSTEM_INSTRUCTION
+        ),
+        temperature=settings.gemini_temperature,
     )
 
 
+@dataclass(frozen=True)
+class ProviderChat:
+    session: ProviderSession
+    model_name: str
+    history: Sequence[dict[str, str]]
+
+    def send_message(
+        self,
+        user_message: str,
+    ) -> str:
+        return self.session.generate(
+            model_name=self.model_name,
+            history=self.history,
+            message=user_message,
+        )
+
+
 def create_chat(
-    client: genai.Client,
-    history: Sequence[types.Content] | None = None,
-):
-    """
-    Create a configured Gemini chat session.
-
-    The optional history parameter allows an existing
-    conversation to be reconstructed from database messages.
-    """
-
-    return client.chats.create(
-        model=GEMINI_MODEL,
-        config=types.GenerateContentConfig(
-            system_instruction=(
-                SYSTEM_INSTRUCTION
-            ),
-            temperature=(
-                GEMINI_TEMPERATURE
-            ),
+    client: ProviderSession,
+    history: Sequence[dict[str, str]] | None = None,
+    *,
+    model_name: str | None = None,
+) -> ProviderChat:
+    return ProviderChat(
+        session=client,
+        model_name=(
+            model_name or settings.gemini_model
         ),
-        history=(
-            list(history)
-            if history
-            else None
-        ),
+        history=list(history or []),
     )
 
 
@@ -64,153 +74,30 @@ def create_history_content(
     *,
     role: str,
     content: str,
-) -> types.Content:
-    """
-    Convert a stored application message into Gemini history.
-
-    Application roles:
-    - user      -> Gemini user
-    - assistant -> Gemini model
-    """
-
-    if role == "assistant":
-        gemini_role = "model"
-
-    elif role == "user":
-        gemini_role = "user"
-
-    else:
-        raise ValueError(
-            f"Unsupported conversation role: {role}"
-        )
-
-    return types.Content(
-        role=gemini_role,
-        parts=[
-            types.Part.from_text(
-                text=content,
-            )
-        ],
+) -> dict[str, str]:
+    return create_history_message(
+        role=role,
+        content=content,
     )
 
 
 def generate_reply(
-    chat,
+    chat: ProviderChat,
     user_message: str,
 ) -> str:
-    """
-    Send a message through the active chat session.
-    """
-
-    response = chat.send_message(
-        user_message,
-    )
-
-    if not response.text:
-        return (
-            "The model did not return a text response."
-        )
-
-    return response.text
+    return chat.send_message(user_message)
 
 
 async def stream_reply(
-    client,
+    client: ProviderSession,
     *,
     model_name: str,
-    history: list,
+    history: list[dict[str, str]],
     message: str,
 ) -> AsyncIterator[str]:
-    """
-    Stream Gemini text chunks for one user message.
-
-    Temporary Gemini failures are retried only when no
-    response chunk has already been sent to the client.
-
-    Retrying after partial output could duplicate text in
-    the frontend, so partial streams are never restarted
-    automatically.
-    """
-
-    contents = [
-        *history,
-        create_history_content(
-            role="user",
-            content=message,
-        ),
-    ]
-
-    max_attempts = 3
-
-    retryable_codes = {
-        429,
-        500,
-        502,
-        503,
-        504,
-    }
-
-    for attempt in range(
-        1,
-        max_attempts + 1,
+    async for text in client.stream(
+        model_name=model_name,
+        history=history,
+        message=message,
     ):
-        chunk_sent = False
-
-        try:
-            response_stream = (
-                await client.aio.models
-                .generate_content_stream(
-                    model=model_name,
-                    contents=contents,
-                    config=(
-                        types.GenerateContentConfig(
-                            system_instruction=(
-                                SYSTEM_INSTRUCTION
-                            ),
-                            temperature=(
-                                GEMINI_TEMPERATURE
-                            ),
-                        )
-                    ),
-                )
-            )
-
-            async for chunk in response_stream:
-                chunk_text = getattr(
-                    chunk,
-                    "text",
-                    None,
-                )
-
-                if not chunk_text:
-                    continue
-
-                chunk_sent = True
-
-                yield chunk_text
-
-            return
-
-        except errors.APIError as exc:
-            error_code = getattr(
-                exc,
-                "code",
-                None,
-            )
-
-            should_retry = (
-                error_code in retryable_codes
-                and not chunk_sent
-                and attempt < max_attempts
-            )
-
-            if not should_retry:
-                raise
-
-            delay_seconds = (
-                2 ** (attempt - 1)
-            )
-
-            await asyncio.sleep(
-                delay_seconds
-            )
+        yield text

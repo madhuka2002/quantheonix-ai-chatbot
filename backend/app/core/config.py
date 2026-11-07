@@ -33,8 +33,13 @@ class Settings(BaseSettings):
 
     api_v1_prefix: str = "/api/v1"
 
-    gemini_api_key: str = Field(
+    gemini_api_key: str | None = Field(
+        default=None,
         alias="GEMINI_API_KEY"
+    )
+
+    provider_key_encryption_secret: str = Field(
+        alias="PROVIDER_KEY_ENCRYPTION_SECRET"
     )
 
     gemini_model: str = Field(

@@ -25,11 +25,13 @@ class PublicConversationRepository:
         *,
         assistant_id: UUID,
         model_name: str,
+        provider: str,
         system_prompt: str | None,
     ) -> PublicConversation:
         conversation = PublicConversation(
             assistant_id=assistant_id,
             model_name=model_name,
+            provider=provider,
             system_prompt=system_prompt,
             is_active=True,
         )

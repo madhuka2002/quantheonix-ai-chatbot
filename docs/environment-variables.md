@@ -1071,7 +1071,7 @@ function App() {
   return (
     <QuantheonixChat
       apiUrl="YOUR_BACKEND_URL"
-      title="AI Assistant"
+      assistantId="YOUR_ASSISTANT_ID"
     />
   );
 }
@@ -1085,30 +1085,12 @@ The API URL is not a Gemini API key.
 
 ---
 
-# 27. Authentication Integration
+# 27. Public Widget Integration
 
-The chatbot package supports an access token and an access-token provider.
-
-For applications that already have an access token, it can be supplied to the component.
-
-Conceptually:
-
-```jsx
-<QuantheonixChat
-  apiUrl="YOUR_BACKEND_URL"
-  accessToken={accessToken}
-/>
-```
-
-For applications that need automatic token retrieval or refresh, the package supports:
-
-```text
-getAccessToken
-```
-
-This allows the host application to control authentication without exposing backend signing secrets.
-
-The JWT secret always remains on the backend.
+The published widget uses the public assistant API. Its supported connection
+props are `apiUrl` and `assistantId`; it does not accept dashboard JWT props.
+Provider keys, JWT signing secrets, and database credentials remain on the
+Quantheonix backend.
 
 ---
 
@@ -1408,9 +1390,10 @@ If PostgreSQL is running on the host and the backend is running in Docker, verif
 | `ENVIRONMENT` | Depends on configuration | No | `development` |
 | `DEBUG` | No | No | `true` / `false` |
 | `API_V1_PREFIX` | No | No | `/api/v1` |
-| `GEMINI_API_KEY` | Yes | **Yes** | User-provided secret |
+| `GEMINI_API_KEY` | No | **Yes** | Optional legacy fallback; never inherited by new assistants |
 | `GEMINI_MODEL` | No | No | `gemini-flash-latest` |
 | `GEMINI_TEMPERATURE` | No | No | `0.7` |
+| `PROVIDER_KEY_ENCRYPTION_SECRET` | Yes | **Yes** | Stable random server secret |
 | `DATABASE_URL` | Yes | **Yes** | PostgreSQL connection URL |
 | `JWT_SECRET_KEY` | Yes | **Yes** | Random secret |
 | `JWT_ALGORITHM` | No | No | `HS256` |
