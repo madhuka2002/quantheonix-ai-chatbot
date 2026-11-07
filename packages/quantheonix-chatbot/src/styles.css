@@ -109,8 +109,9 @@
 
 .qx-widget__toolbar button {
   padding: 0.45rem 0.7rem;
-  color: #334155;
-  background: var(--qx-background);
+  color: var(--qx-new-chat-text);
+  background:
+    var(--qx-new-chat-background);
   border: 1px solid #cbd5e1;
   border-radius: 0.5rem;
   font: inherit;
@@ -197,7 +198,9 @@
   box-sizing: border-box;
 
   padding: 0.7rem 0.8rem;
-  color: #1e293b;
+  color: var(--qx-message-input-text);
+  caret-color:
+    var(--qx-message-input-text);
   background: var(--qx-background);
   border: 1px solid #cbd5e1;
   border-radius: 0.65rem;
@@ -207,6 +210,11 @@
   line-height: 1.45;
 
   text-align: left;
+}
+
+.qx-widget__form textarea::placeholder {
+  color: var(--qx-message-input-text);
+  opacity: 1;
 }
 
 .qx-widget__form textarea:focus {

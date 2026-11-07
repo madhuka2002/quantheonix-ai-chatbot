@@ -25,6 +25,42 @@ function createMessage(
 }
 
 
+function readableTextColor(
+  backgroundColor,
+) {
+  const normalized =
+    /^#[0-9A-Fa-f]{6}$/.test(
+      backgroundColor || "",
+    )
+      ? backgroundColor
+      : "#ffffff";
+
+  const channels = [
+    normalized.slice(1, 3),
+    normalized.slice(3, 5),
+    normalized.slice(5, 7),
+  ].map((channel) => (
+    Number.parseInt(channel, 16) / 255
+  ));
+
+  const [red, green, blue] =
+    channels.map((channel) => (
+      channel <= 0.04045
+        ? channel / 12.92
+        : ((channel + 0.055) / 1.055) ** 2.4
+    ));
+
+  const luminance =
+    0.2126 * red +
+    0.7152 * green +
+    0.0722 * blue;
+
+  return luminance > 0.179
+    ? "#1e293b"
+    : "#f8fafc";
+}
+
+
 function ChatWidget({
   apiUrl,
   assistantId,
@@ -42,6 +78,15 @@ function ChatWidget({
   const position =
     settings.position ||
     "bottom-right";
+
+  const backgroundColor =
+    settings.background_color ||
+    "#ffffff";
+
+  const readableControlText =
+    readableTextColor(
+      backgroundColor,
+    );
 
   const [isOpen, setIsOpen] =
     useState(
@@ -107,8 +152,7 @@ function ChatWidget({
           "#64748b",
 
         "--qx-background":
-          settings.background_color ||
-          "#ffffff",
+          backgroundColor,
 
         "--qx-text":
           settings.text_color ||
@@ -121,6 +165,18 @@ function ChatWidget({
         "--qx-user-bubble":
           settings.user_bubble_color ||
           "#4f46e5",
+
+        "--qx-message-input-text":
+          settings.message_input_text_color ||
+          readableControlText,
+
+        "--qx-new-chat-text":
+          settings.new_chat_button_text_color ||
+          readableControlText,
+
+        "--qx-new-chat-background":
+          settings.new_chat_button_background_color ||
+          backgroundColor,
 
         "--qx-font-family":
           settings.font_family ||
@@ -141,7 +197,11 @@ function ChatWidget({
         "--qx-launcher-size":
           `${settings.launcher_size || 58}px`,
       }),
-      [settings],
+      [
+        backgroundColor,
+        readableControlText,
+        settings,
+      ],
     );
 
 

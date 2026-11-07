@@ -170,6 +170,18 @@ async def test_customer_domain_controls_public_widget_access(
     assert create_response.status_code == 201
     domain_id = create_response.json()["id"]
 
+    widget_colors = {
+        "message_input_text_color": "#abcdef",
+        "new_chat_button_text_color": "#123456",
+        "new_chat_button_background_color": "#fedcba",
+    }
+    widget_response = await client.patch(
+        f"/api/v1/assistants/{assistant_id}/widget",
+        headers=auth_headers(access_token),
+        json=widget_colors,
+    )
+    assert widget_response.status_code == 200
+
     async def fake_stream_message(
         self,
         *,
@@ -197,6 +209,21 @@ async def test_customer_domain_controls_public_widget_access(
     )
 
     assert allowed_config.status_code == 200
+    public_widget = allowed_config.json()["widget"]
+    assert (
+        public_widget["message_input_text_color"]
+        == "#abcdef"
+    )
+    assert (
+        public_widget["new_chat_button_text_color"]
+        == "#123456"
+    )
+    assert (
+        public_widget[
+            "new_chat_button_background_color"
+        ]
+        == "#fedcba"
+    )
     assert allowed_chat.status_code == 200
     assert_public_cors(allowed_config)
     assert_public_cors(allowed_chat)

@@ -55,6 +55,21 @@ class AssistantWidgetUpdate(BaseModel):
         pattern=r"^#[0-9A-Fa-f]{6}$",
     )
 
+    message_input_text_color: str | None = Field(
+        default=None,
+        pattern=r"^#[0-9A-Fa-f]{6}$",
+    )
+
+    new_chat_button_text_color: str | None = Field(
+        default=None,
+        pattern=r"^#[0-9A-Fa-f]{6}$",
+    )
+
+    new_chat_button_background_color: str | None = Field(
+        default=None,
+        pattern=r"^#[0-9A-Fa-f]{6}$",
+    )
+
     assistant_bubble_color: str | None = Field(
         default=None,
         pattern=r"^#[0-9A-Fa-f]{6}$",
@@ -137,6 +152,9 @@ class AssistantWidgetResponse(BaseModel):
     secondary_color: str
     background_color: str
     text_color: str
+    message_input_text_color: str
+    new_chat_button_text_color: str
+    new_chat_button_background_color: str
     assistant_bubble_color: str
     user_bubble_color: str
 

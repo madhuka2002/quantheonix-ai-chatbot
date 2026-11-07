@@ -20,6 +20,9 @@ from app.services.assistant_widget_service import (
     AssistantWidgetNotFoundError,
     AssistantWidgetService,
 )
+from app.services.widget_color_defaults import (
+    resolved_widget_control_colors,
+)
 
 
 router = APIRouter(
@@ -58,9 +61,14 @@ async def get_widget_settings(
             ),
         ) from exc
 
-    return AssistantWidgetResponse.model_validate(
-        widget_settings
-    )
+    response = AssistantWidgetResponse.model_validate({
+        **vars(widget_settings),
+        **resolved_widget_control_colors(
+            widget_settings,
+        ),
+    })
+
+    return response
 
 
 @router.patch(
@@ -95,6 +103,11 @@ async def update_widget_settings(
             ),
         ) from exc
 
-    return AssistantWidgetResponse.model_validate(
-        widget_settings
-    )
+    response = AssistantWidgetResponse.model_validate({
+        **vars(widget_settings),
+        **resolved_widget_control_colors(
+            widget_settings,
+        ),
+    })
+
+    return response
