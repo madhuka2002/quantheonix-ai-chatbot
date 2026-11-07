@@ -1,12 +1,15 @@
 import "../App.css";
 
+import {
+  useState,
+} from "react";
+
 import ChatHeader from "./ChatHeader";
 import ChatInput from "./ChatInput";
 import ConversationSidebar from "./ConversationSidebar";
 import ErrorBanner from "./ErrorBanner";
 import MessageList from "./MessageList";
 
-import { useAuth } from "../hooks/useAuth";
 import { useChat } from "../hooks/useChat";
 import {
   useConversationHistory,
@@ -15,11 +18,10 @@ import {
 
 function ChatApplication({
   assistantId = null,
+  assistantName = "Quantheonix AI Assistant",
 }) {
-  const {
-    user,
-    logout,
-  } = useAuth();
+  const [isHistoryOpen, setIsHistoryOpen] =
+    useState(false);
 
   const {
     input,
@@ -92,6 +94,7 @@ function ChatApplication({
     try {
       await handleNewChat();
       await loadConversations(search);
+      setIsHistoryOpen(false);
     } catch (requestError) {
       console.error(
         "New chat creation failed:",
@@ -167,6 +170,7 @@ function ChatApplication({
       selectedConversationId ===
         conversationId
     ) {
+      setIsHistoryOpen(false);
       return;
     }
 
@@ -174,12 +178,27 @@ function ChatApplication({
       await openConversation(
         selectedConversationId,
       );
+      setIsHistoryOpen(false);
     } catch (requestError) {
       console.error(
         "Conversation loading failed:",
         requestError,
       );
     }
+  }
+
+
+  async function handleChatRetry() {
+    const result = await handleRetry();
+
+    if (
+      result?.conversationId &&
+      !result?.aborted
+    ) {
+      await loadConversations(search);
+    }
+
+    return result;
   }
 
 
@@ -237,19 +256,22 @@ function ChatApplication({
   }
 
 
-  function handleLogout() {
-    logout();
-  }
-
-
   return (
     <div className="chat-shell">
+      {isHistoryOpen && (
+        <button
+          className="conversation-sidebar-backdrop"
+          type="button"
+          onClick={() => setIsHistoryOpen(false)}
+          aria-label="Dismiss history overlay"
+        />
+      )}
+
       <ConversationSidebar
         conversations={conversations}
         activeConversationId={conversationId}
         isLoading={isLoadingHistory}
         error={historyError}
-        user={user}
         search={search}
         onSearchChange={setSearch}
         onSelectConversation={
@@ -265,19 +287,18 @@ function ChatApplication({
         onRefresh={() =>
           loadConversations(search)
         }
-        onLogout={handleLogout}
+        isOpen={isHistoryOpen}
+        onClose={() => setIsHistoryOpen(false)}
       />
 
       <div className="chat-main">
         <ChatHeader
+          conversationId={conversationId}
+          assistantName={assistantName}
+          isLoading={isLoading}
           onNewChat={handleCreateNewChat}
           isResetting={isResetting}
-        />
-
-        <ErrorBanner
-          error={error}
-          failedMessage={failedMessage}
-          onRetry={handleRetry}
+          onOpenHistory={() => setIsHistoryOpen(true)}
         />
 
         <MessageList
@@ -289,6 +310,13 @@ function ChatApplication({
           onEditUserMessage={
             handleEditMessage
           }
+        />
+
+        <ErrorBanner
+          error={error}
+          failedMessage={failedMessage}
+          isLoading={isLoading}
+          onRetry={handleChatRetry}
         />
 
         <ChatInput

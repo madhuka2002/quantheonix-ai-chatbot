@@ -330,6 +330,11 @@ export default function DashboardApplication() {
             assistantId={
               selectedAssistantId
             }
+            assistantName={
+              selectedAssistant?.display_name ??
+              selectedAssistant?.name ??
+              "No assistant selected"
+            }
           />
         </div>
       );
@@ -364,7 +369,13 @@ export default function DashboardApplication() {
           activePage={activePage}
         />
 
-        <main className="dashboard-content">
+        <main
+          className={
+            activePage === "test-chat"
+              ? "dashboard-content dashboard-content--chat"
+              : "dashboard-content"
+          }
+        >
           {renderPage()}
         </main>
       </div>

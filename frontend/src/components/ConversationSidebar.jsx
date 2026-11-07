@@ -26,7 +26,6 @@ export default function ConversationSidebar({
   activeConversationId,
   isLoading,
   error,
-  user,
   search,
   onSearchChange,
   onSelectConversation,
@@ -34,7 +33,8 @@ export default function ConversationSidebar({
   onRenameConversation,
   onNewChat,
   onRefresh,
-  onLogout,
+  isOpen = false,
+  onClose,
 }) {
   const cleanedSearch = (
     search || ""
@@ -60,7 +60,14 @@ export default function ConversationSidebar({
 
 
   return (
-    <aside className="conversation-sidebar">
+    <aside
+      className={
+        isOpen
+          ? "conversation-sidebar conversation-sidebar--open"
+          : "conversation-sidebar"
+      }
+      aria-label="Conversation history"
+    >
       <div className="sidebar-top">
         <div className="sidebar-brand">
           <div className="sidebar-logo">
@@ -68,9 +75,18 @@ export default function ConversationSidebar({
           </div>
 
           <div>
-            <strong>Quantheonix AI</strong>
-            <span>Assistant</span>
+            <strong>Chat history</strong>
+            <span>Test conversations</span>
           </div>
+
+          <button
+            className="sidebar-close"
+            type="button"
+            onClick={onClose}
+            aria-label="Close history"
+          >
+            ×
+          </button>
         </div>
 
         <button
@@ -219,26 +235,6 @@ export default function ConversationSidebar({
           )}
       </div>
 
-      <div className="sidebar-user">
-        <div>
-          <strong>
-            {user?.full_name ||
-              user?.username ||
-              "User"}
-          </strong>
-
-          <span>
-            {user?.email || ""}
-          </span>
-        </div>
-
-        <button
-          type="button"
-          onClick={onLogout}
-        >
-          Log out
-        </button>
-      </div>
     </aside>
   );
 }

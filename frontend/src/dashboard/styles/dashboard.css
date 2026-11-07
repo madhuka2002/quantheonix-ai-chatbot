@@ -1,7 +1,9 @@
 .dashboard-shell {
   display: grid;
   grid-template-columns: 260px minmax(0, 1fr);
-  min-height: 100vh;
+  height: 100dvh;
+  min-height: 0;
+  overflow: hidden;
   background:
     radial-gradient(
       circle at top right,
@@ -136,7 +138,11 @@
 }
 
 .dashboard-workspace {
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr);
   min-width: 0;
+  min-height: 0;
+  overflow: hidden;
 }
 
 .dashboard-header {
@@ -223,6 +229,13 @@
 
 .dashboard-content {
   padding: 2rem;
+  overflow-y: auto;
+}
+
+.dashboard-content--chat {
+  min-height: 0;
+  padding: 1rem;
+  overflow: hidden;
 }
 
 .dashboard-page {
@@ -589,18 +602,24 @@
 }
 
 .dashboard-chat-page {
-  height: calc(100vh - 122px);
-  margin: -2rem;
+  height: 100%;
+  min-height: 0;
 }
 
 .dashboard-chat-page .chat-shell {
   grid-template-columns:
     270px minmax(0, 1fr);
   height: 100%;
+  min-height: 0;
+  overflow: hidden;
+  border: 1px solid #e4e7ef;
+  border-radius: 14px;
+  box-shadow: 0 12px 32px rgba(33, 38, 55, 0.07);
 }
 
 .dashboard-chat-page .chat-main {
   height: 100%;
+  min-height: 0;
 }
 
 .dashboard-empty-state {
@@ -657,6 +676,14 @@
     padding-left: 1rem;
   }
 
+  .dashboard-content--chat {
+    padding: 0.75rem;
+  }
+
+  .dashboard-chat-page .chat-shell {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
   .overview-hero,
   .dashboard-toolbar {
     align-items: flex-start;
@@ -671,6 +698,10 @@
 @media (max-width: 560px) {
   .dashboard-shell {
     display: block;
+  }
+
+  .dashboard-workspace {
+    height: calc(100dvh - 64px);
   }
 
   .dashboard-sidebar {
@@ -715,6 +746,15 @@
 
   .dashboard-content {
     padding-bottom: 5rem;
+  }
+
+  .dashboard-content--chat {
+    padding: 0;
+  }
+
+  .dashboard-chat-page .chat-shell {
+    border: 0;
+    border-radius: 0;
   }
 
   .dashboard-stats,

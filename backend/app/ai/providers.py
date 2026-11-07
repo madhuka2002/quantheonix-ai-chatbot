@@ -281,26 +281,28 @@ class ProviderSession:
             chunk_sent = False
 
             try:
-                response = await genai.Client(
+                with genai.Client(
                     api_key=self.api_key
-                ).aio.models.generate_content_stream(
-                    model=model_name,
-                    contents=self._gemini_contents(
-                        history,
-                        message,
-                    ),
-                    config=self._gemini_config(),
-                )
+                ) as client:
+                    async with client.aio as async_client:
+                        response = await async_client.models.generate_content_stream(
+                            model=model_name,
+                            contents=self._gemini_contents(
+                                history,
+                                message,
+                            ),
+                            config=self._gemini_config(),
+                        )
 
-                async for chunk in response:
-                    text = getattr(
-                        chunk,
-                        "text",
-                        None,
-                    )
-                    if text:
-                        chunk_sent = True
-                        yield text
+                        async for chunk in response:
+                            text = getattr(
+                                chunk,
+                                "text",
+                                None,
+                            )
+                            if text:
+                                chunk_sent = True
+                                yield text
                 return
             except gemini_errors.APIError as exc:
                 status_code = getattr(
